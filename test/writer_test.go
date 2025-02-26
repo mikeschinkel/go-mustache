@@ -1,8 +1,10 @@
-package mustache
+package mustache_test
 
 import (
 	"bytes"
 	"testing"
+
+	"github.com/alexkappa/mustache"
 )
 
 func TestWriter(t *testing.T) {
@@ -17,16 +19,16 @@ func TestWriter(t *testing.T) {
 		{false, false, "print this\n and this", "print this\n and this"},
 	} {
 		b := bytes.NewBuffer(nil)
-		w := newWriter(b)
-		w.hasText = test.text
-		w.hasTag = test.tag
+		w := mustache.NewWriter(b)
+		w.HasText = test.text
+		w.HasTag = test.tag
 		for _, r := range test.input {
-			err := w.write(r)
+			err := w.WriteRune(r)
 			if err != nil {
 				t.Errorf("write error %q", err)
 			}
 		}
-		w.flush()
+		must("flush", w.Flush())
 		if b.String() != test.expected {
 			t.Errorf("unexpected output %q, expected %q", b.String(), test.expected)
 		}

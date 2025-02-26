@@ -1,11 +1,19 @@
 // Copyright (c) 2014 Alex Kalyvitis
 
-package mustache
+package mustache_test
 
 import (
 	"reflect"
 	"testing"
+
+	"github.com/alexkappa/mustache"
 )
+
+type Bugs struct{}
+
+func (b *Bugs) Bunny() string {
+	return "What's up, Doc!"
+}
 
 func TestSimpleLookup(t *testing.T) {
 	for _, test := range []struct {
@@ -24,6 +32,13 @@ func TestSimpleLookup(t *testing.T) {
 				"map": map[string]interface{}{
 					"in": "I'm nested!",
 				},
+				"ptr": &struct {
+					Foo *struct{ Bar string }
+				}{
+					Foo: &struct{ Bar string }{
+						Bar: "bar",
+					},
+				},
 			},
 			assertions: []struct {
 				name  string
@@ -34,6 +49,7 @@ func TestSimpleLookup(t *testing.T) {
 				{"string", "abc", true},
 				{"boolean", true, true},
 				{"map.in", "I'm nested!", true},
+				{"ptr.Foo.Bar", "bar", true},
 			},
 		},
 		{
@@ -83,9 +99,23 @@ func TestSimpleLookup(t *testing.T) {
 				{"nested.inside", "I'm nested!", true},
 			},
 		},
+		{
+			context: Bugs{},
+			assertions: []struct {
+				name  string
+				value interface{}
+				truth bool
+			}{
+				{name: "Bunny", value: "What's up, Doc!", truth: true},
+			},
+		},
 	} {
 		for _, assertion := range test.assertions {
-			value, truth := lookup(assertion.name, test.context)
+			tmpl := mustache.New(mustache.StructTag("template"))
+			value, truth, err := tmpl.Lookup(assertion.name, test.context)
+			if err != nil {
+				t.Errorf("Unexpected error %v != %v", value, err)
+			}
 			if value != assertion.value {
 				t.Errorf("Unexpected value %v != %v", value, assertion.value)
 			}
@@ -108,7 +138,7 @@ func TestTruth(t *testing.T) {
 		{true, true},
 		{false, false},
 	} {
-		truth := truth(reflect.ValueOf(test.input))
+		truth := mustache.Truthiness(reflect.ValueOf(test.input))
 		if truth != test.expected {
 			t.Errorf("Unexpected truth %t != %t", truth, test.expected)
 		}

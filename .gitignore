@@ -25,5 +25,12 @@ _testmain.go
 
 .wercker
 
+# Local work file
+go.work
+
+
 # IntelliJ
 .idea/
+
+# Project specific
+/test/spec/*.json

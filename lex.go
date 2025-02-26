@@ -11,66 +11,74 @@ import (
 	"unicode/utf8"
 )
 
-// token represents a token or text string returned from the scanner.
-type token struct {
-	typ  tokenType
-	val  string
-	line int
-	col  int
+// Token represents a token or text string returned from the scanner.
+type Token struct {
+	Type   TokenType
+	Value  string
+	Line   int
+	Column int
 }
 
-// String satisfies the fmt.Stringer interface making it easier to print tokens.
-func (i token) String() string {
-	return fmt.Sprintf("%s:%q", i.typ, i.val)
+// String satisfies the fmt.Stringer interface making it easier to print Tokens.
+func (i Token) String() string {
+	return fmt.Sprintf("%s:%q", i.Type, i.Value)
 }
 
-// tokenType identifies the type of lex tokens.
-type tokenType int
+// TokenType identifies the type of lex Tokens.
+type TokenType int
 
 const (
-	tokenError tokenType = iota // error occurred; value is text of error
-	tokenEOF
-	tokenIdentifier     // alphanumeric identifier
-	tokenLeftDelim      // {{ left action delimiter
-	tokenRightDelim     // }} right action delimiter
-	tokenText           // plain text
-	tokenComment        // {{! this is a comment and is ignored}}
-	tokenSectionStart   // {{#foo}} denotes a section start
-	tokenSectionInverse // {{^foo}} denotes an inverse section start
-	tokenSectionEnd     // {{/foo}} denotes the closing of a section
-	tokenRawStart       // { denotes the beginning of an unencoded identifier
-	tokenRawEnd         // } denotes the end of an unencoded identifier
-	tokenRawAlt         // {{&foo}} is an alternative way to define raw tags
-	tokenPartial        // {{>foo}} denotes a partial
-	tokenSetDelim       // {{={% %}=}} sets delimiters to {% and %}
-	tokenSetLeftDelim   // denotes a custom left delimiter
-	tokenSetRightDelim  // denotes a custom right delimiter
+	TokenError TokenType = iota // error occurred; value is text of error
+	TokenEOF
+	TokenIdentifier        // alphanumeric identifier
+	TokenLeftDelim         // {{ left action delimiter
+	TokenRightDelim        // }} right action delimiter
+	TokenText              // plain text
+	TokenComment           // {{! this is a comment and is ignored}}
+	TokenSectionStart      // {{#foo}} denotes a section start
+	TokenSectionInverse    // {{^foo}} denotes an inverse section start
+	TokenSectionEnd        // {{/foo}} denotes the closing of a section
+	TokenRawStart          // { denotes the beginning of an unencoded identifier
+	TokenRawEnd            // } denotes the end of an unencoded identifier
+	TokenRawAlt            // {{&foo}} is an alternative way to define raw tags
+	TokenPartial           // {{>foo}} denotes a partial
+	TokenSetDelim          // {{={% %}=}} sets delimiters to {% and %}
+	TokenSetLeftDelim      // denotes a custom left delimiter
+	TokenSetRightDelim     // denotes a custom right delimiter
+	TokenDynamicStart      // {{*foo}} denotes a dynamic name lookup for partial foo
+	TokenDot               // {{*foo.*bar}} denotes a dotted dynamic name lookup for partial foo
+	TokenLeadingWhitespace // whitespace at start of line
+	TokenNewlineText       // text containing only a newline
 )
 
-// Make the types prettyprint.
-var tokenName = map[tokenType]string{
-	tokenError:          "t_error",
-	tokenEOF:            "t_eof",
-	tokenIdentifier:     "t_ident",
-	tokenLeftDelim:      "t_left_delim",
-	tokenRightDelim:     "t_right_delim",
-	tokenText:           "t_text",
-	tokenComment:        "t_comment",
-	tokenSectionStart:   "t_section_start",
-	tokenSectionInverse: "t_section_inverse",
-	tokenSectionEnd:     "t_section_end",
-	tokenRawStart:       "t_raw_start",
-	tokenRawEnd:         "t_raw_end",
-	tokenRawAlt:         "t_raw_alt",
-	tokenPartial:        "t_partial",
-	tokenSetDelim:       "t_set_delim",
-	tokenSetLeftDelim:   "t_set_left_delim",
-	tokenSetRightDelim:  "t_set_right_delim",
+// TokenName used for pretty printing types.
+var TokenName = map[TokenType]string{
+	TokenError:             "t_error",
+	TokenEOF:               "t_eof",
+	TokenIdentifier:        "t_ident",
+	TokenLeftDelim:         "t_left_delim",
+	TokenRightDelim:        "t_right_delim",
+	TokenText:              "t_text",
+	TokenComment:           "t_comment",
+	TokenSectionStart:      "t_section_start",
+	TokenSectionInverse:    "t_section_inverse",
+	TokenSectionEnd:        "t_section_end",
+	TokenRawStart:          "t_raw_start",
+	TokenRawEnd:            "t_raw_end",
+	TokenRawAlt:            "t_raw_alt",
+	TokenPartial:           "t_partial",
+	TokenSetDelim:          "t_set_delim",
+	TokenSetLeftDelim:      "t_set_left_delim",
+	TokenSetRightDelim:     "t_set_right_delim",
+	TokenDynamicStart:      "t_dynamic_start",
+	TokenDot:               "t_dot",
+	TokenLeadingWhitespace: "t_leading_whitespace",
+	TokenNewlineText:       "t_newline_text",
 }
 
-// String satisfies the fmt.Stringer interface making it easier to print tokens.
-func (i tokenType) String() string {
-	s := tokenName[i]
+// String satisfies the fmt.Stringer interface making it easier to print Tokens.
+func (i TokenType) String() string {
+	s := TokenName[i]
 	if s == "" {
 		return fmt.Sprintf("t_unknown_%d", int(i))
 	}
@@ -81,23 +89,27 @@ const eof = -1
 
 // stateFn represents the state of the scanner as a function that returns the
 // next state.
-type stateFn func(*lexer) stateFn
+type stateFn func(*Lexer) stateFn
 
-// lexer holds the state of the scanner.
-type lexer struct {
+// Lexer holds the state of the scanner.
+type Lexer struct {
 	name       string     // the name of the input; used only for error reports.
 	input      string     // the string being scanned.
 	leftDelim  string     // start of action.
 	rightDelim string     // end of action.
 	state      stateFn    // the next lexing function to enter.
 	pos        int        // current position in the input.
-	start      int        // start position of this token.
+	start      int        // start position of this Token.
 	width      int        // width of last rune read from input.
-	tokens     chan token // channel of scanned tokens.
+	Tokens     chan Token // channel of scanned Tokens.
+}
+
+func (l *Lexer) matchesLeftDelim() bool {
+	return strings.HasPrefix(l.input[l.pos:], l.leftDelim)
 }
 
 // next returns the next rune in the input.
-func (l *lexer) next() (r rune) {
+func (l *Lexer) next() (r rune) {
 	if l.pos >= len(l.input) {
 		l.width = 0
 		return eof
@@ -108,25 +120,25 @@ func (l *lexer) next() (r rune) {
 }
 
 // seek advances the pointer by n spaces.
-func (l *lexer) seek(n int) {
+func (l *Lexer) seek(n int) {
 	l.pos += n
 }
 
 // peek returns but does not consume the next rune in the input.
-func (l *lexer) peek() rune {
+func (l *Lexer) peek() rune {
 	r := l.next()
 	l.backup()
 	return r
 }
 
 // backup steps back one rune. Can only be called once per call of next.
-func (l *lexer) backup() {
+func (l *Lexer) backup() {
 	l.pos -= l.width
 }
 
 // emit passes an token back to the client.
-func (l *lexer) emit(t tokenType) {
-	l.tokens <- token{
+func (l *Lexer) emit(t TokenType) {
+	l.Tokens <- Token{
 		t,
 		l.input[l.start:l.pos],
 		l.lineNum(),
@@ -135,19 +147,55 @@ func (l *lexer) emit(t tokenType) {
 	l.start = l.pos
 }
 
+// emit passes an token back to the client using the starting and ending positions
+func (l *Lexer) emitFor(t TokenType, startPos, endPos int) {
+	startSave, endSave := l.start, l.pos
+	l.start, l.pos = startPos, endPos
+	l.emit(t)
+	l.start, l.pos = startSave, endSave
+}
+
 // ignore skips over the pending input before this point.
-func (l *lexer) ignore() {
+func (l *Lexer) ignore() {
 	l.start = l.pos
 }
 
-// lineNum reports which line we're on. Doing it this way
+// char returns byte from .input at current .pos
+func (l *Lexer) char() byte {
+	return l.input[l.pos]
+}
+
+// maybeEmitIndent emits a TokenLeadingWhitespace with a whitespace indention string
+// prefixing a partial, if applicable.
+func (l *Lexer) maybeEmitIndent() {
+	var startPos, endPos int
+	if l.pos == 0 {
+		goto end
+	}
+	endPos = l.pos
+	for startPos = l.pos - 1; startPos > 0; startPos-- {
+		if !unicode.IsSpace(rune(l.input[startPos])) {
+			goto end
+		}
+		if l.input[startPos] == '\n' {
+			// Omit the \n by adding 1 back to startPos
+			startPos++
+			// Now break out and
+			break
+		}
+	}
+	l.emitFor(TokenLeadingWhitespace, startPos, endPos)
+end:
+}
+
+// lineNum reports which Line we're on. Doing it this way
 // means we don't have to worry about peek double counting.
-func (l *lexer) lineNum() int {
+func (l *Lexer) lineNum() int {
 	return 1 + strings.Count(l.input[:l.pos], "\n")
 }
 
-// columnNum reports the character of the current line we're on.
-func (l *lexer) columnNum() int {
+// columnNum reports the character of the current Line we're on.
+func (l *Lexer) columnNum() int {
 	if lf := strings.LastIndex(l.input[:l.pos], "\n"); lf != -1 {
 		return len(l.input[lf+1 : l.pos])
 	}
@@ -155,10 +203,10 @@ func (l *lexer) columnNum() int {
 }
 
 // error returns an error token and terminates the scan by passing
-// back a nil pointer that will be the next state, terminating l.token.
-func (l *lexer) errorf(format string, args ...interface{}) stateFn {
-	l.tokens <- token{
-		tokenError,
+// back a nil pointer that will be the next state, terminating l.Token.
+func (l *Lexer) errorf(format string, args ...interface{}) stateFn {
+	l.Tokens <- Token{
+		TokenError,
 		fmt.Sprintf(format, args...),
 		l.lineNum(),
 		l.columnNum(),
@@ -166,11 +214,11 @@ func (l *lexer) errorf(format string, args ...interface{}) stateFn {
 	return nil
 }
 
-// token returns the next token from the input.
-func (l *lexer) token() token {
+// Token returns the next token from the input.
+func (l *Lexer) Token() Token {
 	for {
 		select {
-		case token := <-l.tokens:
+		case token := <-l.Tokens:
 			return token
 		default:
 			l.state = l.state(l)
@@ -178,22 +226,22 @@ func (l *lexer) token() token {
 	}
 }
 
-func (l *lexer) String() string {
+func (l *Lexer) String() string {
 	w := bytes.NewBuffer(nil)
-	fmt.Fprintf(w, "Template: %q\n", l.input)
-	fmt.Fprintf(w, "Index   : %q\n", l.pos)
-	fmt.Fprintf(w, "Current : %q\n", l.input[l.pos])
-	fmt.Fprintf(w, "Buffer  : %q\n", l.input[l.start:l.pos])
+	MustFprintf(w, "Template: %q\n", l.input)
+	MustFprintf(w, "Index   : %q\n", l.pos)
+	MustFprintf(w, "Current : %q\n", l.char())
+	MustFprintf(w, "Buffer  : %q\n", l.input[l.start:l.pos])
 	return w.String()
 }
 
-// newLexer creates a new scanner for the input string.
-func newLexer(input, left, right string) *lexer {
-	l := &lexer{
+// NewLexer creates a new scanner for the input string.
+func NewLexer(input, left, right string) *Lexer {
+	l := &Lexer{
 		input:      input,
 		leftDelim:  left,
 		rightDelim: right,
-		tokens:     make(chan token, 2),
+		Tokens:     make(chan Token, 2),
 	}
 	l.state = stateText // initial state
 	return l
@@ -202,58 +250,61 @@ func newLexer(input, left, right string) *lexer {
 // state functions.
 
 // stateText scans until an opening action delimiter, "{{".
-func stateText(l *lexer) stateFn {
+func stateText(l *Lexer) (fn stateFn) {
 	for {
 		// Lookahead for {{ which should switch to lexing an open tag instead of
-		// regular text tokens.
-		if strings.HasPrefix(l.input[l.pos:], l.leftDelim) {
+		// regular text Tokens.
+		if l.matchesLeftDelim() {
 			if l.pos > l.start {
-				l.emit(tokenText)
+				l.emit(TokenText)
+				l.maybeEmitIndent()
 			}
-			return stateLeftDelim
+			fn = stateLeftDelim
+			goto end
 		}
-		// Produce a token and exit the loop if we have reached the end of file.
+		// Produce a Token and exit the loop if we have reached the end of file.
 		if l.next() == eof {
 			break
 		}
 	}
 	// Emit whatever we gathered so far as text.
 	if l.pos > l.start {
-		l.emit(tokenText)
+		l.emit(TokenText)
 	}
-	// Always end with EOF token. The parser will keep asking for tokens until
-	// an tokenEOF or tokenError token are encountered.
-	l.emit(tokenEOF)
+	// Always end with EOF Token. The parser will keep asking for Tokens until
+	// an TokenEOF or TokenError Token are encountered.
+	l.emit(TokenEOF)
 	// The text state doesn't have a default next state.
-	return nil
+end:
+	return fn
 }
 
 // stateLeftDelim scans the left delimiter, which is known to be present.
-func stateLeftDelim(l *lexer) stateFn {
+func stateLeftDelim(l *Lexer) stateFn {
 	l.seek(len(l.leftDelim))
 	if l.peek() == '=' {
-		// When the lexer encounters "{{=" it proceeds to the set delimiter
+		// When the Lexer encounters "{{=" it proceeds to the set delimiter
 		// state which alters the left and right delimiters. This operation is
-		// hidden from the parser and no tokens are emited.
+		// hidden from the parser and no Tokens are emitted.
 		l.next()
 		return stateSetDelim
 	}
-	l.emit(tokenLeftDelim)
+	l.emit(TokenLeftDelim)
 	return stateTag
 }
 
 // stateRightDelim scans the right delimiter, which is known to be present.
-func stateRightDelim(l *lexer) stateFn {
+func stateRightDelim(l *Lexer) stateFn {
 	l.seek(len(l.rightDelim))
-	l.emit(tokenRightDelim)
+	l.emit(TokenRightDelim)
 	return stateText
 }
 
 // stateTag scans the elements inside action delimiters.
-func stateTag(l *lexer) stateFn {
+func stateTag(l *Lexer) stateFn {
 	if strings.HasPrefix(l.input[l.pos:], "}"+l.rightDelim) {
 		l.seek(1)
-		l.emit(tokenRawEnd)
+		l.emit(TokenRawEnd)
 		return stateRightDelim
 	}
 	if strings.HasPrefix(l.input[l.pos:], l.rightDelim) {
@@ -265,20 +316,24 @@ func stateTag(l *lexer) stateFn {
 	case whitespace(r):
 		l.ignore()
 	case r == '!':
-		l.emit(tokenComment)
+		l.emit(TokenComment)
 		return stateComment
 	case r == '#':
-		l.emit(tokenSectionStart)
+		l.emit(TokenSectionStart)
+	case r == '*':
+		l.emit(TokenDynamicStart)
 	case r == '^':
-		l.emit(tokenSectionInverse)
+		l.emit(TokenSectionInverse)
 	case r == '/':
-		l.emit(tokenSectionEnd)
+		l.emit(TokenSectionEnd)
 	case r == '&':
-		l.emit(tokenRawAlt)
+		l.emit(TokenRawAlt)
 	case r == '>':
-		l.emit(tokenPartial)
+		l.emit(TokenPartial)
 	case r == '{':
-		l.emit(tokenRawStart)
+		l.emit(TokenRawStart)
+	case r == '.':
+		l.emit(TokenDot)
 	case alphanum(r):
 		l.backup()
 		return stateIdent
@@ -289,35 +344,41 @@ func stateTag(l *lexer) stateFn {
 }
 
 // stateIdent scans an alphanumeric or field.
-func stateIdent(l *lexer) stateFn {
-Loop:
+func stateIdent(l *Lexer) stateFn {
 	for {
 		switch r := l.next(); {
+		case r == '.':
+			l.backup()
+			l.emit(TokenIdentifier)
+			l.next()
+			l.emit(TokenDot)
+			goto end
 		case alphanum(r):
-			// absorb.
+			// absorb
 		default:
 			l.backup()
-			l.emit(tokenIdentifier)
-			break Loop
+			l.emit(TokenIdentifier)
+			goto end
 		}
 	}
+end:
 	return stateTag
 }
 
 // stateComment scans a comment. The left comment marker is known to be present.
-func stateComment(l *lexer) stateFn {
+func stateComment(l *Lexer) stateFn {
 	i := strings.Index(l.input[l.pos:], l.rightDelim)
 	if i < 0 {
 		return l.errorf("unclosed tag")
 	}
 	l.seek(i)
-	l.emit(tokenText)
+	l.emit(TokenText)
 	return stateRightDelim
 }
 
 // stateSetDelim scans a set of set delimiter tags and replaces the lexers left
 // and right delimiters to new values.
-func stateSetDelim(l *lexer) stateFn {
+func stateSetDelim(l *Lexer) stateFn {
 	end := "=" + l.rightDelim
 	i := strings.Index(l.input[l.pos:], end)
 	if i < 0 {
@@ -337,22 +398,22 @@ func stateSetDelim(l *lexer) stateFn {
 	}
 	l.seek(i + len(end))
 	l.ignore()
-	l.emit(tokenSetDelim)
+	l.emit(TokenSetDelim)
 	return stateText
 }
 
 // delimFn is a self referencing function which helps with setting the right
 // delimiter in the right order.
-type delimFn func(l *lexer, s string) delimFn
+type delimFn func(l *Lexer, s string) delimFn
 
 // leftFn sets the left delimiter to s and returns a rightFn.
-func leftFn(l *lexer, s string) delimFn {
+func leftFn(l *Lexer, s string) delimFn {
 	l.leftDelim = s
 	return rightFn
 }
 
 // rightFn sets the right delimiter to s.
-func rightFn(l *lexer, s string) delimFn {
+func rightFn(l *Lexer, s string) delimFn {
 	l.rightDelim = s
 	return nil
 }
@@ -368,5 +429,5 @@ func whitespace(r rune) bool {
 
 // alphanum reports whether r is an alphabetic, digit, or underscore.
 func alphanum(r rune) bool {
-	return r == '_' || r == '.' || unicode.IsLetter(r) || unicode.IsDigit(r)
+	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
 }

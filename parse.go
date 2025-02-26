@@ -5,50 +5,53 @@ package mustache
 import (
 	"fmt"
 	"io"
+	"strings"
 )
 
-type parser struct {
-	lexer *lexer
-	buf   []token
-	ast   []node
+type Parser struct {
+	lexer      *Lexer
+	buf        []Token
+	ast        []Node
+	silentMiss bool
 }
 
 // read returns the next token from the lexer and advances the cursor. This
 // token will not be available by the parser after it has been read.
-func (p *parser) read() token {
+func (p *Parser) read() Token {
 	if len(p.buf) > 0 {
 		r := p.buf[0]
 		p.buf = p.buf[1:]
 		return r
 	}
-	return p.lexer.token()
+	return p.lexer.Token()
 }
 
-// readn returns the next n tokens from the lexer and advances the cursor. If it
-// coundn't read all n tokens, for example if a tokenEOF was returned by the
-// lexer, an error is returned and the returned slice will have all tokens read
-// until that point, including tokenEOF.
-func (p *parser) readn(n int) ([]token, error) {
-	tokens := make([]token, 0, n) // make a slice capable of storing up to n tokens
+// readn returns the next n Tokens from the lexer and advances the cursor. If it
+// couldn't read all n Tokens, for example if a TokenEOF was returned by the
+// lexer, an error is returned and the returned slice will have all Tokens read
+// until that point, including TokenEOF.
+func (p *Parser) readn(n int) ([]Token, error) {
+	Tokens := make([]Token, 0, n) // make a slice capable of storing up to n Tokens
 	for i := 0; i < n; i++ {
-		tokens = append(tokens, p.read())
-		if tokens[i].typ == tokenEOF {
-			return tokens, io.EOF
+		Tokens = append(Tokens, p.read())
+		if Tokens[i].Type == TokenEOF {
+			return Tokens, io.EOF
 		}
 	}
-	return tokens, nil
+	return Tokens, nil
 }
 
-// readt returns the tokens starting from the current position until the first
-// match of t. Similar to readn it will return an error if a tokenEOF was
+// readt returns the Tokens starting from the current position until the first
+// match of t. Similar to readn it will return an error if a TokenEOF was
 // returned by the lexer before a match was made.
-func (p *parser) readt(t tokenType) ([]token, error) {
-	var tokens []token
+func (p *Parser) readt(t TokenType) ([]Token, error) {
+	var tokens []Token
 	for {
 		token := p.read()
 		tokens = append(tokens, token)
-		switch token.typ {
-		case tokenEOF:
+		//goland:noinspection GoSwitchMissingCasesForIotaConsts
+		switch token.Type {
+		case TokenEOF:
 			return tokens, fmt.Errorf("token %q not found", t)
 		case t:
 			return tokens, nil
@@ -56,18 +59,18 @@ func (p *parser) readt(t tokenType) ([]token, error) {
 	}
 }
 
-// readv returns the tokens starting from the current position until the first
-// match of t. A match is made only of t.typ and t.val are equal to the examined
-// token.
-func (p *parser) readv(t token) ([]token, error) {
-	var tokens []token
+// readv returns the Tokens starting from the current position until the first
+// match of t. A match is made only of t.Type and t.Value are equal to the examined
+// Token.
+func (p *Parser) readv(t Token) ([]Token, error) {
+	var tokens []Token
 	for {
-		read, err := p.readt(t.typ)
+		read, err := p.readt(t.Type)
 		tokens = append(tokens, read...)
 		if err != nil {
 			return tokens, err
 		}
-		if len(read) > 0 && read[len(read)-1].val == t.val {
+		if len(read) > 0 && read[len(read)-1].Value == t.Value {
 			break
 		}
 	}
@@ -77,185 +80,333 @@ func (p *parser) readv(t token) ([]token, error) {
 // peek returns the next token without advancing the cursor. Consecutive calls
 // of peek would result in the same token being retuned. To advance the cursor,
 // a read must be made.
-func (p *parser) peek() token {
+func (p *Parser) peek() Token {
 	if len(p.buf) > 0 {
 		return p.buf[0]
 	}
-	t := p.lexer.token()
+	t := p.lexer.Token()
 	p.buf = append(p.buf, t)
 	return t
 }
 
-// peekn returns the next n tokens without advancing the cursor.
-func (p *parser) peekn(n int) ([]token, error) {
+// peekn returns the next n Tokens without advancing the cursor.
+func (p *Parser) peekn(n int) ([]Token, error) {
 	if len(p.buf) > n {
 		return p.buf[:n], nil
 	}
 	for i := len(p.buf) - 1; i < n; i++ {
-		t := p.lexer.token()
+		t := p.lexer.Token()
 		p.buf = append(p.buf, t)
-		if t.typ == tokenEOF {
+		if t.Type == TokenEOF {
 			return p.buf, io.EOF
 		}
 	}
 	return p.buf, nil
 }
 
-// peekt returns the tokens from the current postition until the first match of
+// peekt returns the Tokens from the current position until the first match of
 // t. it will not advance the cursor.
-func (p *parser) peekt(t tokenType) ([]token, error) {
+func (p *Parser) peekt(t TokenType) ([]Token, error) {
 	for i := 0; i < len(p.buf); i++ {
-		switch p.buf[i].typ {
+		//goland:noinspection GoSwitchMissingCasesForIotaConsts
+		switch p.buf[i].Type {
 		case t:
 			return p.buf[:i], nil
-		case tokenEOF:
+		case TokenEOF:
 			return p.buf[:i], io.EOF
 		}
 	}
 	for {
-		token := p.lexer.token()
+		token := p.lexer.Token()
 		p.buf = append(p.buf, token)
-		switch token.typ {
+		//goland:noinspection GoSwitchMissingCasesForIotaConsts
+		switch token.Type {
 		case t:
 			return p.buf, nil
-		case tokenEOF:
+		case TokenEOF:
 			return p.buf, io.EOF
 		}
 	}
 }
 
-func (p *parser) errorf(t token, format string, v ...interface{}) error {
-	return fmt.Errorf("%d:%d syntax error: %s", t.line, t.col, fmt.Sprintf(format, v...))
+func (p *Parser) errorf(t Token, format string, v ...interface{}) error {
+	if strings.HasPrefix(format, "unexpected token") {
+		noop()
+	}
+	return fmt.Errorf("%d:%d syntax error: %s", t.Line, t.Column, fmt.Sprintf(format, v...))
 }
 
-// parse begins parsing based on tokens read from the lexer.
-func (p *parser) parse() ([]node, error) {
-	var nodes []node
-loop:
+// Parse begins parsing based on Tokens read from the lexer.
+func (p *Parser) Parse() (nodes []Node, err error) {
+	var node Node
 	for {
 		token := p.read()
-		switch token.typ {
-		case tokenEOF:
-			break loop
-		case tokenError:
-			return nil, p.errorf(token, "%s", token.val)
-		case tokenText:
-			nodes = append(nodes, textNode(token.val))
-		case tokenLeftDelim:
-			node, err := p.parseTag()
+		switch token.Type {
+		case TokenEOF:
+			goto end
+		case TokenError:
+			err = p.errorf(token, "%s", token.Value)
+			goto end
+		case TokenText:
+			nodes = append(nodes, TextNode(token.Value))
+		case TokenLeadingWhitespace:
+			nodes = append(nodes, LeadingWhitespaceNode(token.Value))
+		case TokenLeftDelim:
+			node, err = p.parseTag()
 			if err != nil {
-				return nodes, err
+				goto end
 			}
 			nodes = append(nodes, node)
-		case tokenRawStart:
-			node, err := p.parseRawTag()
+		case TokenRawStart:
+			node, err = p.parseRawTag()
 			if err != nil {
-				return nodes, err
+				goto end
 			}
 			nodes = append(nodes, node)
-		case tokenSetDelim:
-			nodes = append(nodes, new(delimNode))
+		case TokenSetDelim:
+			nodes = append(nodes, new(DelimNode))
+		default:
+			print()
 		}
 	}
-	return nodes, nil
+end:
+	return nodes, err
 }
 
-// parseTag parses a beggining of a mustache tag. It is assumed that a leftDelim
+// parseTag parses a beginning of a mustache tag. It is assumed that a leftDelim
 // was already read by the parser.
-func (p *parser) parseTag() (node, error) {
+func (p *Parser) parseTag() (node Node, err error) {
 	token := p.read()
-	switch token.typ {
-	case tokenIdentifier:
-		return p.parseVar(token, true)
-	case tokenRawStart:
-		return p.parseRawTag()
-	case tokenRawAlt:
-		return p.parseVar(p.read(), false)
-	case tokenComment:
-		return p.parseComment()
-	case tokenSectionInverse:
-		return p.parseSection(true)
-	case tokenSectionStart:
-		return p.parseSection(false)
-	case tokenPartial:
-		return p.parsePartial()
+	switch token.Type {
+	case TokenIdentifier:
+		node, err = p.parseVar(token, true)
+	case TokenRawStart:
+		node, err = p.parseRawTag()
+	case TokenRawAlt:
+		node, err = p.parseVar(p.read(), false)
+	case TokenComment:
+		node, err = p.parseComment()
+	case TokenSectionInverse:
+		node, err = p.parseSection(true)
+	case TokenSectionStart:
+		node, err = p.parseSection(false)
+	case TokenPartial:
+		node, err = p.parsePartial()
+	case TokenDot:
+		node, err = p.parseDot()
+	default:
+		err = p.errorf(token, "unexpected token '%s'", token)
 	}
-	return nil, p.errorf(token, "unreachable code %s", token)
+	return node, err
 }
 
-// parseRawTag parses a simple variable tag. It is assumed that the read from
-// the parser should return an identifier.
-func (p *parser) parseRawTag() (node, error) {
+// parseDot handles a standalone dot token, which represents the current context
+// in a regular mustache tag like {{.}}.
+//
+// This function expects to find a right delimiter (TokenRightDelim) immediately
+// following the dot token. If any other token is encountered, an error is returned.
+//
+// Returns:
+//   - A VarNode with Name="." and Escape=false
+//   - An error if the right delimiter is not found after the dot
+func (p *Parser) parseDot() (n Node, err error) {
 	t := p.read()
-	if t.typ != tokenIdentifier {
-		return nil, p.errorf(t, "unexpected token %s", t)
+	// Expect closing delimiter
+	if t.Type != TokenRightDelim {
+		err = p.errorf(t, "unexpected token %s; expected %s or %s",
+			t, TokenRightDelim, TokenRawEnd,
+		)
+		goto end
 	}
-	if next := p.read(); next.typ != tokenRawEnd {
-		return nil, p.errorf(t, "unexpected token %s", t)
+	// Return a VarNode with the special "." name
+	n = &VarNode{
+		Name:   ".",
+		Escape: true,
 	}
-	if next := p.read(); next.typ != tokenRightDelim {
-		return nil, p.errorf(t, "unexpected token %s", t)
-	}
-	return &varNode{name: t.val, escape: false}, nil
+end:
+	return n, err
 }
 
-// parseVar parses a simple variable tag. It is assumed that the read from the
-// parser should return an identifier.
-func (p *parser) parseVar(ident token, escape bool) (node, error) {
-	if t := p.read(); t.typ != tokenRightDelim {
-		return nil, p.errorf(t, "unexpected token %s", t)
+// parsePath processes an identifier path that is potentially dot-separated by
+// starting with an initial identifier. It extends the provided initial path
+// string by parsing any subsequent dot-notation components (e.g.,
+// ".field1.field2") that follow in the token stream.
+//
+// For example, when processing "person.name.first", if "person" was already consumed
+// and passed as the initial path, this function would append ".name.first" to create
+// the complete path "person.name.first".
+//
+// This function continues parsing until it encounters a non-dot token, at which
+// point it stops without consuming that token, leaving it for the caller to
+// process. So if there is no dot in the path it simply returns the same path
+// that was passed to it.
+//
+// Parameters:
+//   - path: The initial path (usually identifier that's already been consumed)
+//
+// Returns:
+//   - The complete path string with all dot components appended
+//   - An error if a dot is not followed by a valid identifier
+func (p *Parser) parsePath(path string) (_ string, err error) {
+	var next Token
+
+	// Check for dotted path components
+	for {
+		next = p.peek()
+		if next.Type != TokenDot {
+			break
+		}
+		// Consume the dot
+		p.read()
+
+		// The next token should be an identifier
+		next = p.read()
+		if next.Type != TokenIdentifier {
+			err = p.errorf(next, "expected identifier after dot, got %s", next)
+			goto end
+		}
+
+		// Add the dot and path component to the full path
+		path += "." + next.Value
 	}
-	return &varNode{name: ident.val, escape: escape}, nil
+end:
+	return path, err
+}
+
+// parseRawTag parses a simple variable tag, raw (triple mustache) variable tag
+// which may include dotted paths, or a standalone dot referring to the current
+// context.
+// For example:
+//
+//   - {{{name}}}           (simple identifier)
+//   - {{{person.name}}}    (dotted path)
+//   - {{{.}}}              (current context)
+func (p *Parser) parseRawTag() (n Node, err error) {
+	// Read the content token
+	t := p.read()
+
+	// Process the content token
+	var name string
+	switch t.Type {
+	case TokenIdentifier:
+		// Process identifier (possibly with path)
+		name, err = p.parsePath(t.Value)
+		if err != nil {
+			goto end
+		}
+	case TokenDot:
+		// Use dot as name
+		name = "."
+	default:
+		goto end
+	}
+
+	// Check for proper closing tokens (common for all content types)
+	t = p.read()
+	if t.Type != TokenRawEnd {
+		goto end
+	}
+
+	t = p.read()
+	if t.Type != TokenRightDelim {
+		goto end
+	}
+
+	n = &VarNode{Name: name, Escape: false}
+
+end:
+	if n == nil {
+		err = p.errorf(t, "unexpected token %s", t)
+	}
+	return n, err
+}
+
+// parseVar parses a variable tag, which may include dotted paths.
+// For example: {{person.name}}
+func (p *Parser) parseVar(ident Token, escape bool) (n Node, err error) {
+	var t Token
+	var path string
+
+	path, err = p.parsePath(ident.Value)
+	if err != nil {
+		goto end
+	}
+
+	// Expect the closing delimiter
+	t = p.read()
+	if t.Type != TokenRightDelim {
+		err = p.errorf(t, "unexpected token %s", t)
+		goto end
+	}
+
+	n = &VarNode{
+		Name:   path,
+		Escape: escape,
+	}
+end:
+	return n, err
 }
 
 // parseComment parses a comment block. It is assumed that the next read should
 // return a t_comment token.
-func (p *parser) parseComment() (node, error) {
+func (p *Parser) parseComment() (node Node, err error) {
 	var comment string
 	for {
 		t := p.read()
-		switch t.typ {
-		case tokenEOF:
-			return nil, p.errorf(t, "unexpected token %s", t)
-		case tokenError:
-			return nil, p.errorf(t, t.val)
-		case tokenRightDelim:
-			return commentNode(comment), nil
+		switch t.Type {
+		case TokenEOF:
+			err = p.errorf(t, "unexpected token %s", t)
+			goto end
+		case TokenError:
+			err = p.errorf(t, "token error %s", t.Value)
+			goto end
+		case TokenRightDelim:
+			node = CommentNode(comment)
+			goto end
 		default:
-			comment += t.val
+			comment += t.Value
 		}
 	}
+end:
+	return node, err
 }
 
 // parseSection parses a section block. It is assumed that the next read should
-// return a t_section token.
-func (p *parser) parseSection(inverse bool) (node, error) {
-	t := p.read()
-	if t.typ != tokenIdentifier {
-		return nil, p.errorf(t, "unexpected token %s", t)
-	}
-	if next := p.read(); next.typ != tokenRightDelim {
-		return nil, p.errorf(t, "unexpected token %s", t)
-	}
+// return a t_section token.`
+func (p *Parser) parseSection(inverse bool) (section Node, err error) {
 	var (
-		tokens []token
-		stack  = 1
+		nodes        []Node
+		read, tokens []Token
+		next         Token
+		stack        = 1
 	)
+	t := p.read()
+	if t.Type != TokenIdentifier {
+		err = p.errorf(t, "unexpected token %s", t)
+		goto end
+	}
+	next = p.read()
+	if next.Type != TokenRightDelim {
+		err = p.errorf(t, "unexpected token %s", t)
+		goto end
+	}
 	for {
-		read, err := p.readv(t)
+		read, err = p.readv(t)
 		if err != nil {
-			return nil, err
+			goto end
 		}
 		tokens = append(tokens, read...)
 		if len(read) > 1 {
-			// Check the token that preceeded the matching identifier. For
+			// Check the token that preceded the matching identifier. For
 			// section start and inverse tokens we increase the stack, otherwise
 			// decrease.
 			tt := read[len(read)-2]
-			switch {
-			case tt.typ == tokenSectionStart || tt.typ == tokenSectionInverse:
+			//goland:noinspection GoSwitchMissingCasesForIotaConsts
+			switch tt.Type {
+			case TokenSectionStart, TokenSectionInverse:
 				stack++
-			case tt.typ == tokenSectionEnd:
+			case TokenSectionEnd:
+
 				stack--
 			}
 		}
@@ -263,37 +414,100 @@ func (p *parser) parseSection(inverse bool) (node, error) {
 			break
 		}
 	}
-	nodes, err := subParser(tokens[:len(tokens)-3]).parse()
+	nodes, err = subParser(tokens[:len(tokens)-3]).Parse()
 	if err != nil {
-		return nil, err
+		goto end
 	}
-	section := &sectionNode{
-		name:     t.val,
-		inverted: inverse,
-		elems:    nodes,
+	section = &SectionNode{
+		Name:     t.Value,
+		Inverted: inverse,
+		Elems:    nodes,
 	}
-	return section, nil
+end:
+	return section, err
 }
 
 // parsePartial parses a partial block. It is assumed that the next read should
 // return a t_ident token.
-func (p *parser) parsePartial() (node, error) {
+func (p *Parser) parsePartial() (node Node, err error) {
+	var isDynamic bool
+	var path []string
+
+	// At this point we've just seen TokenPartial ("{{>")
+	// We need to track if we're in a standalone context
+	var isStandalone bool
+
 	t := p.read()
-	if t.typ != tokenIdentifier {
-		return nil, p.errorf(t, "unexpected token %s", t)
+	for {
+		switch t.Type {
+		case TokenEOF:
+			err = p.errorf(t, "unexpected end of template while parsing partial")
+			goto end
+
+		case TokenDynamicStart:
+			isDynamic = true
+			t = p.read()
+			switch t.Type {
+			case TokenDynamicStart:
+				// If we're already in dynamic mode, this is a double asterisk -
+				// return an empty partial node
+				node = &PartialNode{
+					name:      "",
+					isDynamic: true,
+					//IsStandalone: false,
+					//indent:       "",
+				}
+				goto end
+			default:
+				continue
+			}
+
+		case TokenIdentifier:
+			path = append(path, t.Value)
+
+		case TokenDot:
+			// Continue to next token
+
+		case TokenRightDelim:
+			if isStandalone {
+				// If we started standalone, verify by checking what follows
+				next := p.peek()
+				// Only keep standalone status if followed by newline token
+				if next.Type != TokenNewlineText {
+					// If next token isn't a newline or pure whitespace,
+					// this isn't standalone
+					isStandalone = false
+				} else {
+					// Consume the newline token since we've confirmed standalone
+					p.read()
+				}
+			}
+			node = &PartialNode{
+				name:      strings.Join(path, "."),
+				isDynamic: isDynamic,
+				// A partial is standalone if it has only whitespace before it on the line
+				// and either a newline or only whitespace follows it
+				//IsStandalone: IsStandalone,
+			}
+			goto end
+
+		default:
+			err = p.errorf(t, "unexpected token %s", t)
+			goto end
+		}
+		t = p.read()
 	}
-	if next := p.read(); next.typ != tokenRightDelim {
-		return nil, p.errorf(t, "unexpected token %s", t)
-	}
-	return &partialNode{t.val}, nil
+
+end:
+	return node, err
 }
 
-// newParser creates a new parser using the suppliad lexer.
-func newParser(l *lexer) *parser {
-	return &parser{lexer: l}
+// NewParser creates a new Parser using the supplied lexer.
+func NewParser(l *Lexer) *Parser {
+	return &Parser{lexer: l}
 }
 
 // subParser creates a new parser with a pre-defined token buffer.
-func subParser(b []token) *parser {
-	return &parser{buf: append(b, token{typ: tokenEOF})}
+func subParser(b []Token) *Parser {
+	return &Parser{buf: append(b, Token{Type: TokenEOF})}
 }
