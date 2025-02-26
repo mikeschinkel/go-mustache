@@ -221,3 +221,18 @@ end:
 func (t *Template) AddPreprocessor(p Preprocessor) {
 	t.preprocessors = append(t.preprocessors, p)
 }
+
+func (t *Template) triageError(w io.Writer, err error) error {
+	if err == nil {
+		goto end
+	}
+	if t.silentMiss {
+		goto end
+	}
+	if t.injectOnMiss {
+		injectError(w, err)
+		err = nil
+	}
+end:
+	return err
+}

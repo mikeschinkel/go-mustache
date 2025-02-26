@@ -5,6 +5,7 @@ package mustache
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 )
 
@@ -194,6 +195,8 @@ func (p *Parser) parseTag() (node Node, err error) {
 		node, err = p.parsePartial()
 	case TokenDot:
 		node, err = p.parseDot()
+	case TokenBlockStart:
+		node, err = p.parseBlock()
 	default:
 		err = p.errorf(token, "unexpected token '%s'", token)
 	}
@@ -371,15 +374,94 @@ end:
 	return node, err
 }
 
+func (p *Parser) readUntilEndMatches(startToken Token, tokenTypes ...TokenType) (tokens []Token, err error) {
+	var stack = 1
+	var read []Token
+	// Read until matching end tag
+	for {
+		read, err = p.readv(startToken)
+		if err != nil {
+			goto end
+		}
+		tokens = append(tokens, read...)
+		if len(read) > 1 {
+			// Check the token that preceded the matching identifier
+			tt := read[len(read)-2]
+			switch {
+			case tt.Type == TokenSectionEnd:
+				stack--
+			case slices.Contains(tokenTypes, tt.Type):
+				switch tt.Type {
+				case TokenSectionStart, TokenSectionInverse, TokenSectionEnd:
+					stack++
+				default:
+					// do nothing
+				}
+			default:
+				err = fmt.Errorf("unexpected token type '%s'", tt.Type)
+				goto end
+			}
+		}
+		if stack == 0 {
+			break
+		}
+	}
+end:
+	return tokens, err
+}
+
+// parseBlock processes a block definition in the Mustache inheritance system.
+// Block definitions use the syntax {{$blockName}}...{{/blockName}} and provide default
+// content that can be overridden in child templates.
+//
+// Block definitions create a BlockNode in the syntax tree which renders its content
+// unless it's overridden in a child template.
+//
+// The function reads tokens until finding the matching end tag, accounting for nested
+// blocks with a stack-based approach.
+func (p *Parser) parseBlock() (block Node, err error) {
+	var nodes []Node
+	var tokens []Token
+	var next Token
+
+	// Read the block name
+	t := p.read()
+	if t.Type != TokenIdentifier {
+		err = p.errorf(t, "unexpected token %s", t)
+		goto end
+	}
+
+	// Expect a right delimiter
+	next = p.read()
+	if next.Type != TokenRightDelim {
+		err = p.errorf(t, "unexpected token %s", t)
+		goto end
+	}
+
+	tokens, err = p.readUntilEndMatches(t, TokenBlockStart)
+
+	// Parse content inside the block
+	nodes, err = subParser(tokens[:len(tokens)-3]).Parse()
+	if err != nil {
+		goto end
+	}
+
+	block = &BlockNode{
+		Name:  t.Value,
+		Elems: nodes,
+	}
+
+end:
+	return block, err
+}
+
 // parseSection parses a section block. It is assumed that the next read should
 // return a t_section token.`
 func (p *Parser) parseSection(inverse bool) (section Node, err error) {
-	var (
-		nodes        []Node
-		read, tokens []Token
-		next         Token
-		stack        = 1
-	)
+	var nodes []Node
+	var tokens []Token
+	var next Token
+
 	t := p.read()
 	if t.Type != TokenIdentifier {
 		err = p.errorf(t, "unexpected token %s", t)
@@ -390,30 +472,9 @@ func (p *Parser) parseSection(inverse bool) (section Node, err error) {
 		err = p.errorf(t, "unexpected token %s", t)
 		goto end
 	}
-	for {
-		read, err = p.readv(t)
-		if err != nil {
-			goto end
-		}
-		tokens = append(tokens, read...)
-		if len(read) > 1 {
-			// Check the token that preceded the matching identifier. For
-			// section start and inverse tokens we increase the stack, otherwise
-			// decrease.
-			tt := read[len(read)-2]
-			//goland:noinspection GoSwitchMissingCasesForIotaConsts
-			switch tt.Type {
-			case TokenSectionStart, TokenSectionInverse:
-				stack++
-			case TokenSectionEnd:
 
-				stack--
-			}
-		}
-		if stack == 0 {
-			break
-		}
-	}
+	tokens, err = p.readUntilEndMatches(t, TokenSectionStart, TokenSectionInverse)
+
 	nodes, err = subParser(tokens[:len(tokens)-3]).Parse()
 	if err != nil {
 		goto end

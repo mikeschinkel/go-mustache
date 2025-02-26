@@ -49,6 +49,7 @@ const (
 	TokenDot               // {{*foo.*bar}} denotes a dotted dynamic name lookup for partial foo
 	TokenLeadingWhitespace // whitespace at start of line
 	TokenNewlineText       // text containing only a newline
+	TokenBlockStart        // For {{$name}} blocks
 )
 
 // TokenName used for pretty printing types.
@@ -74,6 +75,7 @@ var TokenName = map[TokenType]string{
 	TokenDot:               "t_dot",
 	TokenLeadingWhitespace: "t_leading_whitespace",
 	TokenNewlineText:       "t_newline_text",
+	TokenBlockStart:        "t_block_start",
 }
 
 // String satisfies the fmt.Stringer interface making it easier to print Tokens.
@@ -334,6 +336,8 @@ func stateTag(l *Lexer) stateFn {
 		l.emit(TokenRawStart)
 	case r == '.':
 		l.emit(TokenDot)
+	case r == '$':
+		l.emit(TokenBlockStart)
 	case alphanum(r):
 		l.backup()
 		return stateIdent

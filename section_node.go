@@ -43,23 +43,18 @@ func (n *SectionNode) GetChildren() []Node {
 // both relative and absolute references.
 func (n *SectionNode) Render(t *Template, w *Writer, c ...interface{}) error {
 	w.tag()
-	defer w.tag()
+	//defer w.tag()
 	// Helper function to render all child elements with the given context
 	elemFn := func(v ...interface{}) error {
-		n.Elems = fixWhitespace(n.Elems, nil)
+		//n.Elems = fixWhitespace(n.Elems, nil)
+		errs := MultiErr{}
 		for _, elem := range n.Elems {
 			err := elem.Render(t, w, append(v, c...)...)
-			if err != nil {
-				if !t.silentMiss {
-					return fmt.Errorf("failed to render element %s; %w", n.Name, err)
-				} else if !t.injectOnMiss {
-					return nil
-				} else {
-					injectError(w.w, err)
-				}
-			}
+			errs.Add(t.triageError(w.w,
+				fmt.Errorf("failed to render block element %s; %w", n.Name, err),
+			))
 		}
-		return nil
+		return errs.Err()
 	}
 
 	// Try to lookup the section name in the current context
