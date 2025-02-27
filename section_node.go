@@ -5,6 +5,7 @@ import (
 	"reflect"
 )
 
+var _ Node = (*SectionNode)(nil)
 var _ ChildrenGetter = (*SectionNode)(nil)
 
 // SectionNode represents a section tag in a mustache template, like "{{#section}}...{{/section}}"
@@ -25,6 +26,13 @@ type SectionNode struct {
 	Inverted bool
 	// Elems contains the child nodes inside the section
 	Elems []Node
+}
+
+func (n *SectionNode) Clone() Node {
+	newNode := new(SectionNode)
+	*newNode = *n
+	newNode.Elems = cloneNodes(n.Elems)
+	return newNode
 }
 
 // GetChildren returns the section's child nodes.

@@ -38,6 +38,20 @@ type Template struct {
 	preprocessors []Preprocessor
 }
 
+// Clone created a copy of a Template
+func (t *Template) Clone() (newTmpl *Template) {
+	newTmpl = new(Template)
+	*newTmpl = *t
+
+	// Deep copy the node tree
+	newTmpl.Elems = make([]Node, len(t.Elems))
+	for i, elem := range t.Elems {
+		newTmpl.Elems[i] = elem.Clone()
+	}
+
+	return newTmpl
+}
+
 // GetChildren returns the template's nodes as a slice.
 // This method implements the ChildrenGetter interface.
 func (t *Template) GetChildren() []Node {

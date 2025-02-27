@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+var _ Node = (*PartialNode)(nil)
 var _ DerivedNodesGetter = (*PartialNode)(nil)
 
 // The PartialNode type represents a named partial template.
@@ -14,6 +15,12 @@ type PartialNode struct {
 	isDynamic    bool
 	isStandalone bool
 	indent       string
+}
+
+func (p *PartialNode) Clone() Node {
+	newPartial := new(PartialNode)
+	*newPartial = *p
+	return newPartial
 }
 
 func (p *PartialNode) GetDerivedNodes(t *Template) (nodes []Node, err error) {

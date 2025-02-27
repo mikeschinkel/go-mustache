@@ -4,6 +4,8 @@ import (
 	"fmt"
 )
 
+var _ Node = (*VarNode)(nil)
+
 // VarNode represents a variable tag in a mustache template, like "{{name}}".
 // When rendered, it looks up the variable in the context and renders its value.
 // This handles both escaped "{{name}}" and unescaped "{{{name}}}" or "{{&name}}" tags.
@@ -13,6 +15,12 @@ type VarNode struct {
 	// Escape determines whether HTML special characters should be escaped
 	// (true for "{{name}}", false for "{{{name}}}" or "{{&name}}")
 	Escape bool
+}
+
+func (n *VarNode) Clone() Node {
+	newN := new(VarNode)
+	*newN = *n
+	return newN
 }
 
 // Render implements the Node interface for VarNode.

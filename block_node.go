@@ -4,6 +4,7 @@ import (
 	"fmt"
 )
 
+var _ Node = (*BlockNode)(nil)
 var _ ChildrenGetter = (*BlockNode)(nil)
 
 // BlockNode represents a block definition in Mustache inheritance.
@@ -14,6 +15,13 @@ type BlockNode struct {
 	Name string
 	// Elems contains the default content nodes inside the block
 	Elems []Node
+}
+
+func (n *BlockNode) Clone() Node {
+	newNode := new(BlockNode)
+	*newNode = *n
+	newNode.Elems = cloneNodes(n.Elems)
+	return newNode
 }
 
 // GetChildren returns the block's child nodes.

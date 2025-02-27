@@ -19,4 +19,13 @@ type Node interface {
 	//
 	// Returns an error if rendering fails.
 	Render(t *Template, w *Writer, c ...interface{}) error
+	Clone() Node
+}
+
+func cloneNodes(nodes []Node) (cloned []Node) {
+	cloned = make([]Node, len(nodes))
+	for i, node := range nodes {
+		cloned[i] = node.Clone()
+	}
+	return cloned
 }

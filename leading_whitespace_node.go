@@ -4,7 +4,13 @@ import (
 	"fmt"
 )
 
+var _ Node = (*LeadingWhitespaceNode)(nil)
+
 type LeadingWhitespaceNode string
+
+func (n LeadingWhitespaceNode) Clone() Node {
+	return n
+}
 
 //goland:noinspection GoUnusedParameter
 func (n LeadingWhitespaceNode) Render(t *Template, w *Writer, c ...interface{}) (err error) {

@@ -4,10 +4,16 @@ import (
 	"fmt"
 )
 
+var _ Node = (*TextNode)(nil)
+
 // TextNode represents literal text in a mustache template.
 // This is any content outside of mustache tags ({{...}}).
 // TextNode is implemented as a string alias, storing the raw text content.
 type TextNode string
+
+func (n TextNode) Clone() Node {
+	return n
+}
 
 // Render implements the Node interface for TextNode.
 // It writes the text content to the writer, character by character,
