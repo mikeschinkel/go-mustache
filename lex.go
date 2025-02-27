@@ -50,6 +50,7 @@ const (
 	TokenLeadingWhitespace // whitespace at start of line
 	TokenNewlineText       // text containing only a newline
 	TokenBlockStart        // For {{$name}} blocks
+	TokenInheritStart      // For {{<name}} inherited templates
 )
 
 // TokenName used for pretty printing types.
@@ -76,6 +77,7 @@ var TokenName = map[TokenType]string{
 	TokenLeadingWhitespace: "t_leading_whitespace",
 	TokenNewlineText:       "t_newline_text",
 	TokenBlockStart:        "t_block_start",
+	TokenInheritStart:      "t_inherit_start",
 }
 
 // String satisfies the fmt.Stringer interface making it easier to print Tokens.
@@ -338,6 +340,8 @@ func stateTag(l *Lexer) stateFn {
 		l.emit(TokenDot)
 	case r == '$':
 		l.emit(TokenBlockStart)
+	case r == '<':
+		l.emit(TokenInheritStart)
 	case alphanum(r):
 		l.backup()
 		return stateIdent

@@ -197,10 +197,70 @@ func (p *Parser) parseTag() (node Node, err error) {
 		node, err = p.parseDot()
 	case TokenBlockStart:
 		node, err = p.parseBlock()
+	case TokenInheritStart:
+		node, err = p.parseInherit()
 	default:
 		err = p.errorf(token, "unexpected token '%s'", token)
 	}
 	return node, err
+}
+
+// parseInherit processes a template inheritance tag using the syntax {{<templateName}}.
+// It reads any block overrides between the inherit tag and its matching end tag.
+// These overrides will replace blocks with the same name in the parent template.
+func (p *Parser) parseInherit() (node Node, err error) {
+	var tokens []Token
+	var nodes []Node
+	var next Token
+
+	// Read the template name to inherit
+	t := p.read()
+	if t.Type != TokenIdentifier {
+		err = p.errorf(t, "unexpected token %s", t)
+		goto end
+	}
+
+	// Expect a right delimiter
+	next = p.read()
+	if next.Type != TokenRightDelim {
+		err = p.errorf(next, "unexpected token %s", next)
+		goto end
+	}
+
+	// Read until matching end tag
+	tokens, err = p.readUntilEndMatches(t, TokenBlockStart, TokenInheritStart)
+	if err != nil {
+		goto end
+	}
+
+	// Parse content inside the inheritance declaration
+	if len(tokens) > 3 {
+		nodes, err = subParser(tokens[:len(tokens)-3]).Parse()
+		if err != nil {
+			goto end
+		}
+	}
+
+	// Create the inheritance node with any block overrides
+	node = &InheritNode{
+		Name:      t.Value,
+		Overrides: extractBlockOverrides(nodes),
+	}
+
+end:
+	return node, err
+}
+
+// extractBlockOverrides processes a list of nodes to find block definitions
+// and returns them as a map of block name to block content nodes.
+func extractBlockOverrides(nodes []Node) map[string][]Node {
+	overrides := make(map[string][]Node)
+	for _, n := range nodes {
+		if block, ok := n.(*BlockNode); ok {
+			overrides[block.Name] = block.Elems
+		}
+	}
+	return overrides
 }
 
 // parseDot handles a standalone dot token, which represents the current context
