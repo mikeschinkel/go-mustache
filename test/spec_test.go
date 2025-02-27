@@ -136,6 +136,7 @@ func testSpecFunc(t *testing.T, s Spec, testNum int) func(t *testing.T) {
 				}
 
 				if output != tt.Expected {
+					write(w, "\n")
 					write(w, "Name:     %s\n", tt.Name)
 					write(w, "Tree:     %+v\n", template.Elems)
 					write(w, "Data:     %q\n", tt.Data)
