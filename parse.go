@@ -434,34 +434,58 @@ end:
 	return node, err
 }
 
+// readUntilEndMatches reads tokens until it finds a matching end token for the given start token.
+// It handles nested structures using a stack-based approach to correctly match nested start and end tags.
+//
+// Parameters:
+//   - startToken: The token whose identifier we're trying to match with an end token
+//   - tokenTypes: A list of token types that should increment the stack when encountered
+//
+// Returns:
+//   - tokens: All tokens read up to and including the matching end token
+//   - err: Any error encountered during reading
 func (p *Parser) readUntilEndMatches(startToken Token, tokenTypes ...TokenType) (tokens []Token, err error) {
 	var stack = 1
 	var read []Token
 	// Read until matching end tag
 	for {
+		// Try to read until we find a token with the same identifier as our start token
 		read, err = p.readv(startToken)
 		if err != nil {
 			goto end
 		}
 		tokens = append(tokens, read...)
+
 		if len(read) > 1 {
 			// Check the token that preceded the matching identifier
+			// This is typically a token like TokenSectionEnd, TokenSectionStart, etc.
 			tt := read[len(read)-2]
 			switch {
 			case tt.Type == TokenSectionEnd:
+				// When we find an end token, decrement the stack
+				// If stack reaches 0, we've found our matching end token
 				stack--
 			case slices.Contains(tokenTypes, tt.Type):
+				// If the token is one of the types we're watching for
 				switch tt.Type {
 				case TokenSectionStart, TokenSectionInverse, TokenSectionEnd:
+					// For section-related tokens, increment the stack
+					// This ensures we correctly handle nested structures
 					stack++
 				default:
-					// do nothing
+					// For other token types, don't modify the stack
+					// This handles special cases that don't follow the normal nesting rules
 				}
 			default:
+				// If we encounter a token type not in our allowed list,
+				// it's an unexpected token in this context
 				err = fmt.Errorf("unexpected token type '%s'", tt.Type)
 				goto end
 			}
 		}
+
+		// If our stack is back to 0, we've found the matching end token
+		// that corresponds to our original start token
 		if stack == 0 {
 			break
 		}
