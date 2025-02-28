@@ -13,7 +13,7 @@ var _ Node = (*InheritNode)(nil)
 // block overrides within the inheriting template.
 type InheritNode struct {
 	// Name is the partial template to inherit from
-	Name string
+	name string
 	// Overrides contains any block overrides defined in this template
 	Overrides Overrides
 	// isStandalone indicates if this is a standalone tag (only non-whitespace on its line)
@@ -24,14 +24,14 @@ type InheritNode struct {
 
 func NewInheritNode(name string, overrides Overrides) *InheritNode {
 	return &InheritNode{
-		Name:      name,
+		name:      name,
 		Overrides: overrides,
 	}
 }
 
 func (n *InheritNode) Clone() Node {
 	return &InheritNode{
-		Name:         n.Name,
+		name:         n.name,
 		Overrides:    n.Overrides.Clone(),
 		isStandalone: n.isStandalone,
 		indent:       n.indent,
@@ -52,7 +52,7 @@ func (n *InheritNode) Render(t *Template, w *Writer, c ...interface{}) (err erro
 	overrides = t.pushOverrides(n.Overrides)
 
 	// Get the partial template
-	tmpl, found, err = t.getPartial(n.Name)
+	tmpl, found, err = t.getPartial(n.name)
 	if !found {
 		// partial not found
 		goto end
@@ -96,7 +96,7 @@ end:
 
 // String returns a string representation of the InheritNode.
 func (n *InheritNode) String() string {
-	return fmt.Sprintf("[inherit: %q Overrides: %v]", n.Name, n.Overrides)
+	return fmt.Sprintf("[inherit: %q Overrides: %v]", n.name, n.Overrides)
 }
 
 // GetDerivedNodes returns the nodes from the template being inherited
@@ -106,7 +106,7 @@ func (n *InheritNode) GetDerivedNodes(t *Template) (elems []Node, err error) {
 	var found bool
 
 	// Get the partial template
-	tmpl, found, err = t.getPartial(n.Name)
+	tmpl, found, err = t.getPartial(n.name)
 	if err != nil {
 		// partial not found and silentMiss==false
 		goto end
@@ -307,21 +307,31 @@ func (pp *SpecConformance) applyIndentationToChildNodes(nodes []Node, indent str
 
 	// Apply indentation to appropriate nodes
 	for i, node := range nodes {
-		if textNode, ok := node.(TextNode); ok {
-			// Apply indentation to text nodes
-			text := string(textNode)
-			if strings.Contains(text, "\n") {
-				// Add indentation after each newline
-				lines := strings.Split(text, "\n")
-				for j := 1; j < len(lines); j++ {
-					if lines[j] != "" {
-						lines[j] = indent + lines[j]
-					}
-				}
-				nodes[i] = TextNode(strings.Join(lines, "\n"))
+		textNode, ok := node.(TextNode)
+		if !ok {
+			continue
+		}
+
+		// Apply indentation to text nodes
+		text := string(textNode)
+		if !strings.Contains(text, "\n") {
+			continue
+		}
+
+		// Add indentation after each newline
+		lines := strings.Split(text, "\n")
+		for j := 1; j < len(lines); j++ {
+			if lines[j] != "" {
+				lines[j] = indent + lines[j]
 			}
 		}
+		nodes[i] = TextNode(strings.Join(lines, "\n"))
 	}
+}
+
+// Name returns the value of the name property of InheritNode
+func (n *InheritNode) Name() string {
+	return n.name
 }
 
 // SetStandalone implements the StandaloneTagNode interface for InheritNode

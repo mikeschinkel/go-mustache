@@ -1,5 +1,9 @@
 package mustache
 
+import (
+	"strings"
+)
+
 // StandaloneTagNode interface for nodes that can be standalone
 type StandaloneTagNode interface {
 	Node
@@ -7,6 +11,7 @@ type StandaloneTagNode interface {
 	SetStandalone(indent string)
 	// DerivedNodesGetter returns nodes that are derived from template dependencies
 	DerivedNodesGetter
+	Name() string
 }
 
 // preprocessStandalone handles any node that can be standalone
@@ -19,6 +24,7 @@ func (pp *SpecConformance) preprocessStandalone(t *Template, nodes []Node, index
 	var indent, s string
 	var kids []Node
 	var last int
+	var partial *Template
 
 	// Look for whitespace-only text before this tag
 	indent, hasLeadingWhitespace = pp.getLeadingWhitespace(nodes, index)
@@ -71,7 +77,7 @@ func (pp *SpecConformance) preprocessStandalone(t *Template, nodes []Node, index
 	if err != nil {
 		goto end
 	}
-	if len(kids) < 2 {
+	if len(kids) == 0 {
 		goto end
 	}
 	last = len(kids) - 1
@@ -83,8 +89,19 @@ func (pp *SpecConformance) preprocessStandalone(t *Template, nodes []Node, index
 	// Apply any special indentation handling for derived nodes
 	pp.applyIndentationToChildNodes(kids, indent)
 
-	// Remove the indent on the last kid for a standalone
-	kids[last] = TextNode(string(text)[:len(text)-len(indent)])
+	s = string(kids[last].(TextNode))
+	if strings.HasPrefix(s, indent) {
+		// Remove the indent on the last kid for a standalone
+		kids[last] = TextNode(s[:len(s)-len(indent)])
+	}
+
+	// TODO: Try to eliminate this by ensuring partials share pointers to elements
+	partial, ok = t.partials[tagNode.Name()]
+	if !ok {
+		goto end
+	}
+	partial.Elems = kids
+
 end:
 	return err
 }

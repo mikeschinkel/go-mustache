@@ -12,9 +12,6 @@ var _ Preprocessor = (*SpecConformance)(nil)
 // newlineRegex matches both CR+LF and LF newlines
 var newlineRegex = regexp.MustCompile("(\r?\n)")
 
-// multilineRegex matches both CR+LF and LF newlines as well as before and after
-var multilineRegex = regexp.MustCompile("(.*?)(\r?\n)(.*?)")
-
 // SpecConformance detects and marks standalone partials
 type SpecConformance struct {
 	IndentStack Stack[string]
@@ -176,18 +173,11 @@ func (pp *SpecConformance) indentText(t *Template, elems []Node) (err error) {
 
 	// Process each element, adding indentation where needed
 	for i, elem := range elems {
-		switch node := elem.(type) {
+		switch elem.(type) {
 		case TextNode:
 			if isRoot && i == 0 {
 				continue
 			}
-			text := string(node)
-			// Use regex to split by either \r\n or \n, keeping the delimiters
-			matches := multilineRegex.FindAllStringSubmatch(text, -1)
-			for j, match := range matches {
-				noop(j, match)
-			}
-			//elems[i] = TextNode(strings.Join(matches, ""))
 
 		default:
 			// Non-text nodes (like variables, sections)

@@ -17,6 +17,11 @@ type PartialNode struct {
 	indent       string
 }
 
+// Name returns the value of the name property of PartialNode
+func (n *PartialNode) Name() string {
+	return n.name
+}
+
 func (p *PartialNode) SetStandalone(indent string) {
 	p.isStandalone = true
 	p.indent = indent
