@@ -58,9 +58,11 @@ func (n *SectionNode) Render(t *Template, w *Writer, c ...interface{}) error {
 		errs := MultiErr{}
 		for _, elem := range n.Elems {
 			err := elem.Render(t, w, append(v, c...)...)
-			errs.Add(t.triageError(w.w,
-				fmt.Errorf("failed to render block element %s; %w", n.Name, err),
-			))
+			if err != nil {
+				errs.Add(t.triageError(w.w,
+					fmt.Errorf("failed to render block element %s; %w", n.Name, err),
+				))
+			}
 		}
 		return errs.Err()
 	}
@@ -83,7 +85,7 @@ func (n *SectionNode) Render(t *Template, w *Writer, c ...interface{}) error {
 			if r.Len() == 0 {
 				// Empty slices/arrays are treated like falsy values
 				err := elemFn(v)
-				if err != nil && !t.silentMiss {
+				if err != nil {
 					return err
 				}
 				return nil
@@ -91,14 +93,14 @@ func (n *SectionNode) Render(t *Template, w *Writer, c ...interface{}) error {
 			// For non-empty slices/arrays, iterate and render for each item
 			for i := 0; i < r.Len(); i++ {
 				err := elemFn(r.Index(i).Interface())
-				if err != nil && !t.silentMiss {
+				if err != nil {
 					return err
 				}
 			}
 		default:
 			// For other truthy values, render once with the value as context
 			err := elemFn(v)
-			if err != nil && !t.silentMiss {
+			if err != nil {
 				return err
 			}
 		}

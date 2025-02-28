@@ -1,5 +1,9 @@
 package mustache
 
+import (
+	"log/slog"
+)
+
 // Option is a function that configures a Template.
 // This package uses the functional options pattern for configuring templates.
 // Options can be provided when creating a new template or applied later using
@@ -117,6 +121,12 @@ func SilentMiss(silent bool) Option {
 func InjectOnMiss(inject bool) Option {
 	return func(t *Template) {
 		t.injectOnMiss = inject
+	}
+}
+
+func Logger(logger *slog.Logger) Option {
+	return func(t *Template) {
+		t.logger = logger
 	}
 }
 

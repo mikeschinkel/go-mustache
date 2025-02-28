@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
+var _ StandaloneTagNode = (*PartialNode)(nil)
 var _ Node = (*PartialNode)(nil)
-var _ DerivedNodesGetter = (*PartialNode)(nil)
 
 // The PartialNode type represents a named partial template.
 type PartialNode struct {
@@ -15,6 +15,11 @@ type PartialNode struct {
 	isDynamic    bool
 	isStandalone bool
 	indent       string
+}
+
+func (p *PartialNode) SetStandalone(indent string) {
+	p.isStandalone = true
+	p.indent = indent
 }
 
 func (p *PartialNode) Clone() Node {

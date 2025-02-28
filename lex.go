@@ -172,6 +172,7 @@ func (l *Lexer) char() byte {
 // maybeEmitIndent emits a TokenLeadingWhitespace with a whitespace indention string
 // prefixing a partial, if applicable.
 func (l *Lexer) maybeEmitIndent() {
+	var emit bool
 	var startPos, endPos int
 	if l.pos == 0 {
 		goto end
@@ -184,11 +185,14 @@ func (l *Lexer) maybeEmitIndent() {
 		if l.input[startPos] == '\n' {
 			// Omit the \n by adding 1 back to startPos
 			startPos++
+			emit = true
 			// Now break out and
 			break
 		}
 	}
-	l.emitFor(TokenLeadingWhitespace, startPos, endPos)
+	if emit {
+		l.emitFor(TokenLeadingWhitespace, startPos, endPos)
+	}
 end:
 }
 

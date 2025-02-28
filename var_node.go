@@ -38,25 +38,20 @@ func (n *VarNode) Render(t *Template, w *Writer, c ...interface{}) error {
 		v, _, err = t.Lookup(n.Name, t.root)
 	}
 	if err != nil {
-		switch {
-		case !t.silentMiss:
-			return err
-		case !t.injectOnMiss:
-			return nil
-		default:
-			injectError(w.w, err)
-		}
+		goto end
+	}
+	if v == nil {
+		err = fmt.Errorf("failed to lookup %s", n.Name)
+		goto end
 	}
 	// If the value is present but 'falsy', such as a false bool, or a zero int,
 	// we still want to render that value.
-	if v != nil {
-		if n.Escape {
-			v = escape(fmt.Sprintf("%v", v))
-		}
-		write(w, v)
-		return nil
+	if n.Escape {
+		v = escape(fmt.Sprintf("%v", v))
 	}
-	return fmt.Errorf("failed to lookup %s", n.Name)
+	write(w, v)
+end:
+	return err
 }
 
 // String returns a string representation of the VarNode for debugging.

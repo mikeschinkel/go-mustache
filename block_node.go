@@ -17,36 +17,36 @@ type BlockNode struct {
 	Elems []Node
 }
 
-func (n *BlockNode) Clone() Node {
+func (b *BlockNode) Clone() Node {
 	newNode := new(BlockNode)
-	*newNode = *n
-	newNode.Elems = cloneNodes(n.Elems)
+	*newNode = *b
+	newNode.Elems = cloneNodes(b.Elems)
 	return newNode
 }
 
 // GetChildren returns the block's child nodes.
 // This method implements the ChildrenGetter interface.
-func (n *BlockNode) GetChildren() []Node {
-	return n.Elems
+func (b *BlockNode) GetChildren() []Node {
+	return b.Elems
 }
 
 // Render implements the Node interface for BlockNode.
 // It renders the default content of the block.
-func (n *BlockNode) Render(t *Template, w *Writer, c ...interface{}) (err error) {
+func (b *BlockNode) Render(t *Template, w *Writer, c ...interface{}) (err error) {
 	w.tag()
 	//defer w.tag()
 	errs := MultiErr{}
 	//n.Elems = fixWhitespace(n.Elems, nil)
-	for _, elem := range n.Elems {
+	for _, elem := range b.Elems {
 		err = elem.Render(t, w, c...)
-		errs.Add(t.triageError(w.w,
-			fmt.Errorf("failed to render block element %s; %w", n.Name, err),
-		))
+		if err != nil {
+			errs.Add(fmt.Errorf("failed to render block element %s; %w", b.Name, err))
+		}
 	}
 	return errs.Err()
 }
 
 // String returns a string representation of the BlockNode for debugging.
-func (n *BlockNode) String() string {
-	return fmt.Sprintf("[block: %q Elems: %s]", n.Name, n.Elems)
+func (b *BlockNode) String() string {
+	return fmt.Sprintf("[block: %q Elems: %s]", b.Name, b.Elems)
 }

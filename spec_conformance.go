@@ -30,12 +30,17 @@ func (pp *SpecConformance) Preprocess(t *Template, nodes []Node, index int) (err
 	case *SectionNode:
 		err = Preprocess(pp, t, node.Elems)
 	case *PartialNode:
-		err = pp.preprocessPartial(t, nodes, index)
+		// Keep existing partial handling
+		err = pp.preprocessStandalone(t, nodes, index, node)
+		pp.IndentStack.Pop()
+	case *InheritNode:
+		// Handle InheritNode as standalone tag
+		err = pp.preprocessStandalone(t, nodes, index, node)
 		pp.IndentStack.Pop()
 	case LeadingWhitespaceNode:
 		pp.IndentStack.Push(string(node) + pp.IndentStack.Top())
 	case TextNode:
-		err = pp.preprocessText(t, nodes, index)
+		err = pp.preprocessText(t, nodes, index, node)
 	}
 	if index == len(nodes)-1 {
 		pp.StackDepth--
@@ -49,7 +54,7 @@ func (pp *SpecConformance) Preprocess(t *Template, nodes []Node, index int) (err
 // preprocessText processes a single text node
 //
 //goland:noinspection GoUnusedParameter
-func (pp *SpecConformance) preprocessText(t *Template, nodes []Node, index int) (err error) {
+func (pp *SpecConformance) preprocessText(t *Template, nodes []Node, index int, node TextNode) (err error) {
 	var matches [][]int
 	var text TextNode
 	var content string
@@ -85,7 +90,9 @@ func (pp *SpecConformance) preprocessText(t *Template, nodes []Node, index int) 
 		// Update position
 		lastPos = match[1]
 
-		if pp.StackDepth == 1 && index == len(nodes)-1 && i == len(matches)-1 {
+		//if pp.StackDepth == 1 && index == len(nodes)-1 && i == len(matches)-1 {
+		noop(i)
+		if pp.StackDepth == 1 && index == len(nodes)-1 {
 			// Don't add indentation on the last element
 			break
 		}
@@ -103,91 +110,20 @@ end:
 	return nil
 }
 
-// preprocessPartial processes a single node for standalone partials
-func (pp *SpecConformance) preprocessPartial(t *Template, nodes []Node, index int) (err error) {
-	var hasLeadingWhitespace bool
-	var partial *PartialNode
-	var text TextNode
-	var followedByNewline, isStandalone bool
-	var matches []int
-	var ok bool
-	var indent, s string
-	var kids []Node
-	var last int
-
-	// First, check for standalone pattern
-	partial, ok = nodes[index].(*PartialNode)
-	if !ok {
-		goto end
-	}
-
-	// Look for whitespace-only text before this partial
-	indent, hasLeadingWhitespace = pp.getLeadingWhitespace(nodes, index)
-	text, followedByNewline = pp.getFollowedByNewline(nodes, index)
-	if followedByNewline {
-		nodes[index+1] = text
-	}
-	if !followedByNewline && index == len(nodes)-1 {
-		// Treat partials with no trailing TextNode as effectively "follows by new line"
-		followedByNewline = true
-	}
-
-	// If we have both conditions, this is a standalone partial
-	isStandalone = hasLeadingWhitespace && followedByNewline
-
-	if !isStandalone {
-		goto end
-	}
-
-	partial.isStandalone = true
-	partial.indent = indent
-	s = string(text)
-
-	err = pp.indentText(t, nodes)
-	if err != nil {
-		goto end
-	}
-	// Use regex to match and remove the newline (handles both \n and \r\n)
-	matches = newlineRegex.FindStringIndex(s)
-	if matches == nil {
-		goto end
-	}
-
-	// Check if the newline is at the very beginning of the text
-	if matches[0] != 0 {
-		// This is a more complex case where the newline isn't at the start
-		// This branch shouldn't be hit in your test case
-		goto end
-	}
-	// Remove the newline completely
-	nodes[index+1] = TextNode(s[matches[1]:])
-
-	kids, err = partial.GetDerivedNodes(t)
-	if err != nil {
-		goto end
-	}
-	if len(kids) < 2 {
-		goto end
-	}
-	last = len(kids) - 1
-	text, ok = kids[last].(TextNode)
-	if !ok {
-		goto end
-	}
-	// Remove the indent on the last kid for a standalone
-	kids[last] = TextNode(string(text)[:len(text)-len(indent)])
-end:
-	return err
+type StandaloneSetter interface {
+	SetStandalone(indent string)
 }
 
 // getLeadingWhitespace returns leading whitespace, if exists
 func (pp *SpecConformance) getLeadingWhitespace(nodes []Node, index int) (indent string, has bool) {
 	var wsNode LeadingWhitespaceNode
-	if index <= 0 {
-		goto end
+	switch index {
+	case 0:
+		// No prior TextNode means effectively that it "has leading whitespace."
+		has = true
+	default:
+		wsNode, has = nodes[index-1].(LeadingWhitespaceNode)
 	}
-	wsNode, has = nodes[index-1].(LeadingWhitespaceNode)
-end:
 	return string(wsNode), has
 }
 
@@ -213,10 +149,6 @@ func (pp *SpecConformance) getFollowedByNewline(nodes []Node, index int) (node T
 	is = newlineRegex.MatchString(s)
 end:
 	return text, is
-}
-
-type NodeGetter interface {
-	GetNodes(*Template) (nodes []Node, err error)
 }
 
 // ChildrenGetter provides access to nodes that are direct children

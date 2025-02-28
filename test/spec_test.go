@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -64,6 +65,19 @@ func TestSpec(t *testing.T) {
 
 var write = MustFprintf
 
+func testLogger() mustache.Option {
+	return mustache.Logger(
+		slog.New(
+			slog.NewTextHandler(
+				os.Stderr,
+				&slog.HandlerOptions{
+					Level: slog.LevelDebug,
+				},
+			),
+		),
+	)
+}
+
 func testSpecFunc(t *testing.T, s Spec, testNum int) func(t *testing.T) {
 	t.Helper()
 	return func(t *testing.T) {
@@ -110,7 +124,7 @@ func testSpecFunc(t *testing.T, s Spec, testNum int) func(t *testing.T) {
 				defer w.Reset() // Reset writer after each test.
 
 				// Parse the template and report errors.
-				template := mustache.New()
+				template := mustache.New(testLogger())
 				if err := template.ParseString(tt.Template); err != nil {
 					MustFprintf(w, "Error: %s\n", err)
 					t.Fatal(w.String())
@@ -119,7 +133,7 @@ func testSpecFunc(t *testing.T, s Spec, testNum int) func(t *testing.T) {
 				// If partials were present in the spec test iterate and test each
 				// one.
 				for n, s := range tt.Partials {
-					p := mustache.New(Name(n))
+					p := mustache.New(Name(n), mustache.Logger(template.Logger()))
 					if err := p.ParseString(s); err != nil {
 
 						MustFprintf(w, "Partial : %s> %q\n", n, s)

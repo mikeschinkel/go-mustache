@@ -6,6 +6,10 @@ import (
 
 type MultiErr []error
 
+func NewMultiErr() MultiErr {
+	return make(MultiErr, 0)
+}
+
 func (errs *MultiErr) Err() error {
 	return errors.Join(*errs...)
 }

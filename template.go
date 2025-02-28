@@ -3,7 +3,10 @@ package mustache
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
+	"log/slog"
+	"maps"
 	"strings"
 )
 
@@ -30,12 +33,16 @@ type Template struct {
 	endDelim string
 	// silentMiss controls whether missing variables cause errors
 	silentMiss bool
+	// silentMiss controls whether missing variables cause errors
+	logger *slog.Logger
 	// injectOnMiss controls whether to inject error messages
 	injectOnMiss bool
 	// tagIndexCache caches tag lookups for performance
 	tagIndexCache map[string]int
 	// preprocessors are applied before rendering
 	preprocessors []Preprocessor
+
+	overrides *ClonableStack[Overrides]
 }
 
 // Clone created a copy of a Template
@@ -89,13 +96,7 @@ func (t *Template) render(w *Writer, context ...interface{}) (err error) {
 		errs = append(errs, err)
 	}
 
-	if !t.silentMiss {
-		err = errors.Join(errs...)
-	} else {
-		err = nil
-	}
-
-	return err
+	return t.triageError(w, errors.Join(errs...))
 }
 
 // New creates and returns a new Template instance with default settings.
@@ -119,6 +120,7 @@ func New(options ...Option) *Template {
 		silentMiss:    true,
 		tagIndexCache: make(map[string]int),
 		preprocessors: make([]Preprocessor, 0),
+		overrides:     &ClonableStack[Overrides]{},
 	}
 	// Ensure Mustang Spec Conformance across nodes and partials
 	t.AddPreprocessor(&SpecConformance{})
@@ -240,13 +242,44 @@ func (t *Template) triageError(w io.Writer, err error) error {
 	if err == nil {
 		goto end
 	}
-	if t.silentMiss {
-		goto end
+	if t.logger != nil {
+		t.logger.Error(err.Error())
+		err = nil
 	}
-	if t.injectOnMiss {
+	if t.injectOnMiss && !t.silentMiss {
 		injectError(w, err)
 		err = nil
 	}
 end:
 	return err
+}
+
+func (t *Template) Logger() *slog.Logger {
+	return t.logger
+}
+
+func (t *Template) getPartial(name string) (partial *Template, found bool, err error) {
+	var ok bool
+	partial, ok = t.partials[name]
+	if ok {
+		found = true
+		goto end
+	}
+	if !t.silentMiss {
+		err = fmt.Errorf("template '%s' not found", name)
+		goto end
+	}
+end:
+	return partial, found, err
+}
+
+func (t *Template) pushOverrides(overrides Overrides) (oo Overrides) {
+	oo = t.overrides.Top()
+	if oo == nil {
+		oo = overrides.Clone()
+	} else {
+		maps.Insert(oo, maps.All(overrides.Clone()))
+	}
+	t.overrides.Push(oo)
+	return oo
 }

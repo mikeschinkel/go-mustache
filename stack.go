@@ -21,9 +21,26 @@ func (s *Stack[T]) Top() T {
 	}
 	return s.items[len(s.items)-1]
 }
+
 func (s *Stack[T]) Depth() int {
 	return len(s.items)
 }
 func (s *Stack[T]) Empty() bool {
 	return len(s.items) == 0
+}
+
+type Cloner[T any] interface {
+	Clone() T
+}
+
+type ClonableStack[T Cloner[T]] struct {
+	Stack[T]
+}
+
+func (s *ClonableStack[T]) Clone() *ClonableStack[T] {
+	stack := &ClonableStack[T]{}
+	for _, item := range s.items {
+		stack.Push(item.Clone())
+	}
+	return stack
 }

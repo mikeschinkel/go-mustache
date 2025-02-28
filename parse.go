@@ -242,10 +242,7 @@ func (p *Parser) parseInherit() (node Node, err error) {
 	}
 
 	// Create the inheritance node with any block overrides
-	node = &InheritNode{
-		Name:      t.Value,
-		Overrides: extractBlockOverrides(nodes),
-	}
+	node = NewInheritNode(t.Value, extractBlockOverrides(nodes))
 
 end:
 	return node, err
@@ -256,9 +253,11 @@ end:
 func extractBlockOverrides(nodes []Node) map[string][]Node {
 	overrides := make(map[string][]Node)
 	for _, n := range nodes {
-		if block, ok := n.(*BlockNode); ok {
-			overrides[block.Name] = block.Elems
+		block, ok := n.(*BlockNode)
+		if !ok {
+			continue
 		}
+		overrides[block.Name] = block.Elems
 	}
 	return overrides
 }
@@ -468,7 +467,7 @@ func (p *Parser) readUntilEndMatches(startToken Token, tokenTypes ...TokenType) 
 			case slices.Contains(tokenTypes, tt.Type):
 				// If the token is one of the types we're watching for
 				switch tt.Type {
-				case TokenSectionStart, TokenSectionInverse, TokenSectionEnd:
+				case TokenSectionStart, TokenSectionInverse:
 					// For section-related tokens, increment the stack
 					// This ensures we correctly handle nested structures
 					stack++
