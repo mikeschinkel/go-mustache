@@ -134,7 +134,8 @@ func testSpecFunc(t *testing.T, s Spec, testNum int) func(t *testing.T) {
 				// one.
 				for n, s := range tt.Partials {
 					p := mustache.New(Name(n), mustache.Logger(template.Logger()))
-					if err := p.ParseString(s); err != nil {
+					err := p.ParseString(s)
+					if err != nil {
 
 						MustFprintf(w, "Partial : %s> %q\n", n, s)
 						MustFprintf(w, "Error: %s\n", err)
