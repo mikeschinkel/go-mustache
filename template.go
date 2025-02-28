@@ -274,11 +274,10 @@ end:
 }
 
 func (t *Template) pushOverrides(overrides Overrides) (oo Overrides) {
-	oo = t.overrides.Top()
-	if oo == nil {
-		oo = overrides.Clone()
-	} else {
-		maps.Insert(oo, maps.All(overrides.Clone()))
+	top := t.overrides.Top().Clone()
+	oo = overrides.Clone()
+	if top != nil {
+		maps.Insert(oo, maps.All(top))
 	}
 	t.overrides.Push(oo)
 	return oo

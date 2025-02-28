@@ -47,6 +47,10 @@ func (n *InheritNode) Render(t *Template, w *Writer, c ...interface{}) (err erro
 	var errs MultiErr
 	var overrides Overrides
 
+	// Push our overrides to the stack BEFORE rendering
+	// This way they'll be available to all nested InheritNodes
+	overrides = t.pushOverrides(n.Overrides)
+
 	// Get the partial template
 	tmpl, found, err = t.getPartial(n.Name)
 	if !found {
@@ -58,18 +62,24 @@ func (n *InheritNode) Render(t *Template, w *Writer, c ...interface{}) (err erro
 	//goland:noinspection GoDfaErrorMayBeNotNil
 	inheritedTmpl = tmpl.Clone()
 
-	overrides = t.pushOverrides(n.Overrides)
+	// Important: We need to process ANY inheritance within this template FIRST
+	// before applying our overrides
+	// This ensures that deeper templates are fully resolved before applying overrides
 
-	// Apply any block overrides
+	errs = NewMultiErr()
+
+	// Apply the current overrides to the template
 	if len(overrides) > 0 {
 		// We need to find and replace block nodes in the inherited template
-		n.applyOverrides(inheritedTmpl.Elems, overrides)
+		err = n.applyOverrides(inheritedTmpl, inheritedTmpl.Elems, overrides)
+		if err != nil {
+			errs.Add(err)
+		}
 	}
 
 	// Render the inherited template with the current context
 	// IMPORTANT: Render each element separately to maintain correct order
 	//            Using the same Writer ensures content appears in the correct order
-	errs = NewMultiErr()
 	for _, elem := range inheritedTmpl.Elems {
 		err = elem.Render(t, w, c...)
 		if err != nil {
@@ -78,6 +88,7 @@ func (n *InheritNode) Render(t *Template, w *Writer, c ...interface{}) (err erro
 	}
 	err = errs.Err()
 
+	// Pop overrides after rendering
 	t.overrides.Pop()
 end:
 	return err
@@ -112,63 +123,81 @@ func (n *InheritNode) GetDerivedNodes(t *Template) (elems []Node, err error) {
 	// Apply any block overrides
 	if len(n.Overrides) > 0 {
 		// We need to find and replace block nodes in the inherited template
-		n.applyOverrides(inheritedTmpl.Elems, n.Overrides)
+		err = n.applyOverrides(inheritedTmpl, inheritedTmpl.Elems, n.Overrides)
+		if err != nil {
+			goto end
+		}
 	}
 	elems = inheritedTmpl.Elems
 end:
 	return elems, err
 }
 
-// applyOverrides replaces block nodes in a template with override content.
-// It traverses the template's node tree and replaces BlockNodes with their
-// overridden content when found.
-func (n *InheritNode) applyOverrides(nodes []Node, overrides Overrides) {
-	for i, node := range nodes {
-		block, ok := node.(*BlockNode)
-		if ok {
-			block.applyOverrides(nodes, i, overrides)
-		}
-		// Then recursively process any child nodes
-		// This handles blocks inside sections, for example
-		container, isContainer := node.(ChildrenGetter)
-		if !isContainer {
-			continue
-		}
-		n.applyOverrides(container.GetChildren(), overrides)
-	}
-}
-
-func (b *BlockNode) applyOverrides(nodes []Node, index int, overrides map[string][]Node) {
+func (n *InheritNode) applyOverride(_ *Template, nodes []Node, index int, overrides Overrides) (err error) {
 	var indent string
 	var override []Node
 
+	block, ok := nodes[index].(*BlockNode)
+	if !ok {
+		goto end
+	}
+
 	// First, check if this is a block node that needs to be replaced
-	override, hasOverride := overrides[b.Name]
-	if !hasOverride {
+	override, ok = overrides[block.Name]
+	if !ok {
 		goto end
 	}
 	// We found a block with an override - replace it
 	// But we need to preserve the block's indentation!
 
 	// Find indentation by checking previous nodes or the block itself
-	indent = getBlockIndentation(b, nodes, index)
+	indent = getIndentation(nodes, index)
 
 	// Apply indentation to all lines of the override content
 	override = applyIndentationToNodes(override, indent)
 
 	// Replace the block node with its override
 	nodes[index] = &OverrideNode{
-		Name:  b.Name,
+		Name:  block.Name,
 		Elems: override,
 	}
 end:
-	return
+	return err
 }
 
-// getBlockIndentation determines the indentation that should be applied to a block's content.
+// applyOverrides replaces block nodes in a template with override content.
+// It traverses the template's node tree and replaces BlockNodes with their
+// overridden content when found.
+func (n *InheritNode) applyOverrides(t *Template, nodes []Node, overrides Overrides) (err error) {
+	var kids []Node
+
+	for i, node := range nodes {
+		err = n.applyOverride(t, nodes, i, overrides)
+		if err != nil {
+			goto end
+		}
+
+		// Then recursively process any child nodes
+		// This handles blocks inside sections, for example
+		switch getter := node.(type) {
+		case ChildrenGetter:
+			kids = getter.GetChildren()
+		case DerivedNodesGetter:
+			kids, err = getter.GetDerivedNodes(t)
+			if err != nil {
+				goto end
+			}
+		}
+		err = n.applyOverrides(t.Clone(), kids, overrides)
+	}
+end:
+	return err
+}
+
+// getIndentation determines the indentation that should be applied to a block's content.
 // This looks at surrounding nodes to figure out how much whitespace precedes the block.
 // By default, no indentation
-func getBlockIndentation(_ *BlockNode, nodes []Node, blockIndex int) (indent string) {
+func getIndentation(nodes []Node, blockIndex int) (indent string) {
 	var textNode TextNode
 	var ok bool
 
