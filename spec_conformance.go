@@ -107,10 +107,6 @@ end:
 	return err
 }
 
-type StandaloneSetter interface {
-	SetStandalone(indent string)
-}
-
 // getLeadingWhitespace returns leading whitespace, if exists
 func (pp *SpecConformance) getLeadingWhitespace(nodes []Node, index int) (indent string, has bool) {
 	var wsNode LeadingWhitespaceNode
@@ -146,20 +142,6 @@ func (pp *SpecConformance) getFollowedByNewline(nodes []Node, index int) (node T
 	is = newlineRegex.MatchString(s)
 end:
 	return text, is
-}
-
-// ChildrenGetter provides access to nodes that are direct children
-// of the current node, such as those in a SectionNode.
-type ChildrenGetter interface {
-	GetChildren() []Node
-}
-
-// DerivedNodesGetter obtains nodes that require template information to resolve,
-// such as those from partial templates.
-type DerivedNodesGetter interface {
-	// GetDerivedNodes returns nodes that are derived from template dependencies,
-	// such as the content of a partial template.
-	GetDerivedNodes(t *Template) ([]Node, error)
 }
 
 // indentNodes creates a new template where all content is properly indented.
