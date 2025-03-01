@@ -194,5 +194,3 @@ func (pp *SpecConformance) preprocessOverride(t *Template, node *OverrideNode) (
 	return pp.indentNodes(t, node.Elems)
 }
 
-//goland:noinspection GoUnusedParameter
-func noop(args ...any) {}

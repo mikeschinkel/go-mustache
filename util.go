@@ -8,6 +8,9 @@ import (
 	"strings"
 )
 
+//goland:noinspection GoUnusedParameter
+func noop(args ...any) {}
+
 // injectError writes an error message directly into the output.
 // This is used when SilentMiss and InjectOnMiss are both true,
 // to provide visual feedback about missing variables in the output.
