@@ -1,7 +1,6 @@
 package mustache
 
 import (
-	"errors"
 	"regexp"
 	"slices"
 	"strings"
@@ -30,6 +29,9 @@ func (pp *SpecConformance) Preprocess(t *Template, nodes []Node, index int) (err
 		// Keep existing partial handling
 		err = pp.preprocessStandalone(t, nodes, index, node)
 		pp.IndentStack.Pop()
+	case *OverrideNode:
+		err = pp.preprocessOverride(t, node)
+		pp.IndentStack.Pop()
 	case *InheritNode:
 		// Handle InheritNode as standalone tag
 		err = pp.preprocessStandalone(t, nodes, index, node)
@@ -51,9 +53,8 @@ func (pp *SpecConformance) Preprocess(t *Template, nodes []Node, index int) (err
 // preprocessText processes a single text node
 //
 //goland:noinspection GoUnusedParameter
-func (pp *SpecConformance) preprocessText(t *Template, nodes []Node, index int, node TextNode) (err error) {
+func (pp *SpecConformance) preprocessText(t *Template, nodes []Node, index int, text TextNode) (err error) {
 	var matches [][]int
-	var text TextNode
 	var content string
 	var lastPos int
 	var result strings.Builder
@@ -64,7 +65,6 @@ func (pp *SpecConformance) preprocessText(t *Template, nodes []Node, index int, 
 		goto end
 	}
 
-	text = nodes[index].(TextNode)
 	content = string(text)
 
 	// Find all newline positions
@@ -104,7 +104,7 @@ func (pp *SpecConformance) preprocessText(t *Template, nodes []Node, index int, 
 	nodes[index] = TextNode(result.String())
 
 end:
-	return nil
+	return err
 }
 
 type StandaloneSetter interface {
@@ -162,45 +162,54 @@ type DerivedNodesGetter interface {
 	GetDerivedNodes(t *Template) ([]Node, error)
 }
 
-// indentText creates a new template where all content is properly indented.
+// indentNodes creates a new template where all content is properly indented.
 // It processes the template's elements, ensuring that each line starts with the
 // specified indentation while preserving the structure of non-text nodes.
-func (pp *SpecConformance) indentText(t *Template, elems []Node) (err error) {
-	errs := make([]error, 0)
-	var nodes []Node
-
-	isRoot := slices.Equal(t.Elems, elems)
+func (pp *SpecConformance) indentNodes(t *Template, nodes []Node) (err error) {
+	errs := NewMultiErr()
+	isRoot := slices.Equal(t.Elems, nodes)
 
 	// Process each element, adding indentation where needed
-	for i, elem := range elems {
-		switch elem.(type) {
-		case TextNode:
-			if isRoot && i == 0 {
-				continue
-			}
-
-		default:
-			// Non-text nodes (like variables, sections)
-			switch getter := elem.(type) {
-			case ChildrenGetter:
-				nodes = getter.GetChildren()
-			case DerivedNodesGetter:
-				nodes, err = getter.GetDerivedNodes(t)
-				if err != nil {
-					errs = append(errs, err)
-					continue
-				}
-			default:
-				continue
-			}
-			err = t.Preprocess(pp, nodes)
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
+	for i, node := range nodes {
+		_, ok := node.(TextNode)
+		if ok && isRoot && i == 0 {
+			continue
+		}
+		err = pp.indentNode(t, nodes, i, node)
+		if err != nil {
+			errs.Add(err)
 		}
 	}
-	return errors.Join(errs...)
+	return errs.Err()
+}
+
+func (pp *SpecConformance) indentNode(t *Template, nodes []Node, index int, elem Node) (err error) {
+
+	switch node := elem.(type) {
+	case TextNode:
+		err = pp.preprocessText(t, nodes, index, node)
+
+	default:
+		// Non-text nodes (like variables, sections)
+		switch getter := elem.(type) {
+		case ChildrenGetter:
+			nodes = getter.GetChildren()
+		case DerivedNodesGetter:
+			nodes, err = getter.GetDerivedNodes(t)
+			if err != nil {
+				goto end
+			}
+		default:
+			goto end
+		}
+		err = t.Preprocess(pp, nodes)
+	}
+end:
+	return err
+}
+
+func (pp *SpecConformance) preprocessOverride(t *Template, node *OverrideNode) (err error) {
+	return pp.indentNodes(t, node.Elems)
 }
 
 //goland:noinspection GoUnusedParameter

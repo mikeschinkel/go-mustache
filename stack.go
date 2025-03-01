@@ -40,6 +40,7 @@ type ClonableStack[T Cloner[T]] struct {
 func (s *ClonableStack[T]) Clone() *ClonableStack[T] {
 	stack := &ClonableStack[T]{}
 	for _, item := range s.items {
+		// TODO Does this need to be cloned?
 		stack.Push(item.Clone())
 	}
 	return stack

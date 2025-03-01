@@ -59,6 +59,7 @@ func (n *InheritNode) Render(t *Template, w *Writer, c ...interface{}) (err erro
 	}
 
 	// Clone the template to avoid modifying the original
+	// TODO: Does this need to be cloned?
 	//goland:noinspection GoDfaErrorMayBeNotNil
 	inheritedTmpl = tmpl.Clone()
 
@@ -118,6 +119,7 @@ func (n *InheritNode) GetDerivedNodes(t *Template) (elems []Node, err error) {
 	}
 
 	// Clone the template to avoid modifying the original
+	// TODO Does this need to be cloned?
 	inheritedTmpl = tmpl.Clone()
 
 	// Apply any block overrides
@@ -188,6 +190,10 @@ func (n *InheritNode) applyOverrides(t *Template, nodes []Node, overrides Overri
 				goto end
 			}
 		}
+		if kids == nil {
+			continue
+		}
+		// TODO Try this without the .Clone() to see if it eliminates the need to update t.partials[].Elems = kids
 		err = n.applyOverrides(t.Clone(), kids, overrides)
 	}
 end:

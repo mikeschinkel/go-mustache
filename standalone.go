@@ -54,7 +54,7 @@ func (pp *SpecConformance) preprocessStandalone(t *Template, nodes []Node, index
 	//	nodes[index-1] = TextNode("")
 	//}
 
-	err = pp.indentText(t, nodes)
+	err = pp.indentNodes(t, nodes)
 	if err != nil {
 		goto end
 	}
