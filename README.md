@@ -36,13 +36,13 @@ Add capabilities, fix bugs
 
 ## Status
 
-> **TLDR;** — _I expect to maintain this repo for the foreseeable future. PRs accepted._
+> **TLDR;** — _I expect to maintain this repo for the foreseeable future. PRs accepted with tests addressing fixed use-cases._
 
-As stated in the intro, this repo is a fork of a repo which — at the time of this writing _(2025 Feb)_ — was last updated `16` months ago in 2023 Nov. I will be submitting with my changes back to his repo via a PR to be a good open-source citizen.
+As stated in the intro, this repo is a fork of a repo where major changes were made to fully support [the Mustache spec](https://github.com/mustache/spec). While these changes will be/have been submitting as a PR back to the author's repo to be a good open-source citizen I doubt the author will merge then given the size of the PR and the lack of significant activity the its author since 2018. 
 
-However, **I do not expect the author to merge my PR** given past activity on the repo. Out of seven (`7`) PRs, the author merged only the first two (`2`) trivial changes in 2018, closed two others (`2`) without merging where one (`1`) claims to resolve a graph traversal cycle. Of the three (`3`) remaining open, two (`2`) were approved in five (`5`) years ago, but never merged, and the one from 2021 has seen no response.
+So **I expect to maintain this repo** as long as I maintain [github.com/mikeschinkel/resumex-cli](https://github.com/mikeschinkel/resumex-cli) which is the project where I needed a Mustache parser to parse [**this**](https://github.com/LinuxBozo/jsonresume-theme-kendall/blob/b4d035e4b90118a9ae02e8fbf9b174795c073ee0/resume.template) [JSON Resume](https://jsonresume.org) [theme](https://jsonresume.org/themes). If you find a bug in this parser and want to fix it, please contribute a PR along with the smallest test illustrating the issue that your PR fixes. 
 
-So **I expect to maintain this repo** as long as I maintain [github.com/mikeschinkel/resumex-cli](https://github.com/mikeschinkel/resumex-cli) which is the project where I needed a Mustache parser to parse [**this**](https://github.com/LinuxBozo/jsonresume-theme-kendall/blob/b4d035e4b90118a9ae02e8fbf9b174795c073ee0/resume.template) [JSON Resume](https://jsonresume.org) [theme](https://jsonresume.org/themes).
+Alternately if you want to submit a PR to optimize performance feel free to do so but you will have a better chance of getting it approved if you start a discussion to propose your solution beforehand.
 
 
 ## Spec Conformance
