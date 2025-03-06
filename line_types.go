@@ -5,13 +5,13 @@ import (
 	"slices"
 )
 
-type LineNoTypes []LineTypes
+type LineTypes []LineAspects
 
-func (ts LineNoTypes) Equal(types LineNoTypes) bool {
-	lntss := [2]LineNoTypes{ts, types}
+func (ts LineTypes) Equal(types LineTypes) bool {
+	lntss := [2]LineTypes{ts, types}
 	for i, lnts := range lntss {
-		for j, lineTypes := range lnts {
-			if len(lineTypes) <= 1 {
+		for j, LineAspects := range lnts {
+			if len(LineAspects) <= 1 {
 				continue
 			}
 			slices.Sort(lnts[j])

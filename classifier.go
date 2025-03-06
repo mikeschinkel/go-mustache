@@ -22,12 +22,12 @@ import (
 //}
 
 type TemplateClassifier struct {
-	template    string
-	openDelim   string
-	closeDelim  string
-	lines       []string
-	tagEndPos   int
-	lineNoTypes LineNoTypes
+	template   string
+	openDelim  string
+	closeDelim string
+	lines      []string
+	tagEndPos  int
+	LineTypes  LineTypes
 }
 
 var crlfRegex = regexp.MustCompile("(\r\n|\r|\n)")
@@ -43,29 +43,29 @@ func NewTemplateClassifier(template string) *TemplateClassifier {
 }
 
 func (tc *TemplateClassifier) Initialize() (err error) {
-	tc.lineNoTypes = make(LineNoTypes, len(tc.lines))
+	tc.LineTypes = make(LineTypes, len(tc.lines))
 	tc.tagEndPos = -1
 	return err
 }
 
-func (tc *TemplateClassifier) AddLineType(lineNo int, lts ...LineType) {
-	ts := tc.lineNoTypes
+func (tc *TemplateClassifier) AddLineType(lineNo int, lts ...LineAspect) {
+	ts := tc.LineTypes
 	if lineNo >= len(ts) {
-		panic(fmt.Sprintf("ERROR: LineNoTypes lineNo %d out of range [0..%d]", lineNo, len(ts)))
+		panic(fmt.Sprintf("ERROR: LineTypes lineNo %d out of range [0..%d]", lineNo, len(ts)))
 	}
 
-	m := make(map[LineType]struct{}, len(ts[lineNo]))
+	m := make(map[LineAspect]struct{}, len(ts[lineNo]))
 	for _, t := range append(ts[lineNo], lts...) {
 		m[t] = struct{}{}
 	}
 	ts[lineNo] = slices.Collect(maps.Keys(m))
-	tc.lineNoTypes = ts
+	tc.LineTypes = ts
 }
 
 // Classify analyzes a mustache template string and returns
 // a slice of booleans indicating whether each line contains a standalone tag.
 // This implementation properly handles line boundaries and tag detection.
-func (tc *TemplateClassifier) Classify() (_ LineNoTypes, err error) {
+func (tc *TemplateClassifier) Classify() (_ LineTypes, err error) {
 	errs := NewMultiErr()
 	err = tc.Initialize()
 	if err != nil {
@@ -93,7 +93,7 @@ func (tc *TemplateClassifier) Classify() (_ LineNoTypes, err error) {
 		noop()
 	}
 end:
-	return tc.lineNoTypes, errs.Err()
+	return tc.LineTypes, errs.Err()
 }
 
 const TripleBracketBegin = "{{{"
@@ -102,7 +102,7 @@ const TripleBracketEnd = "}}}"
 func (tc *TemplateClassifier) classifyLine(lineNo *int) (err error) {
 	var start int
 	var tagOpened, tagClosed, multiline, notStandalone bool
-	var lt LineType
+	var lt LineAspect
 
 	line := tc.lines[*lineNo]
 
@@ -281,7 +281,7 @@ end:
 	return tagClosed, tc.lines[*lineNo], err
 }
 
-func (tc *TemplateClassifier) maybeEatTripleBracket(line string, pos *int) (ate bool, lt LineType, err error) {
+func (tc *TemplateClassifier) maybeEatTripleBracket(line string, pos *int) (ate bool, lt LineAspect, err error) {
 	start := *pos
 	if !tc.tripleBracketFound(line, pos, TripleBracketBegin) {
 		// Not a triple bracket
@@ -303,7 +303,7 @@ end:
 	return ate, lt, err
 }
 
-func (tc *TemplateClassifier) seekSecondTag(line string, pos *int) (lt LineType) {
+func (tc *TemplateClassifier) seekSecondTag(line string, pos *int) (lt LineAspect) {
 	lt = InlineTagLine
 
 	// Check if there's another opening delimiter after the first tag
