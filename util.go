@@ -93,3 +93,13 @@ func MustFprintf(w io.Writer, format string, a ...interface{}) (n int) {
 	}
 	return n
 }
+
+// leadingWhitespace returns the leading whitespace of a string
+func leadingWhitespace(s string) string {
+	for i := 0; i < len(s); i++ {
+		if s[i] != ' ' && s[i] != '\t' {
+			return s[:i]
+		}
+	}
+	return s
+}

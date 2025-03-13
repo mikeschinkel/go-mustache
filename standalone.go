@@ -4,8 +4,8 @@ import (
 	"strings"
 )
 
-// StandaloneTagNode interface for nodes that can be standalone
-type StandaloneTagNode interface {
+// StandaloneNode interface for nodes that can be standalone
+type StandaloneNode interface {
 	Node
 	// SetStandalone marks the node as a standalone tag with the given indentation
 	SetStandalone(indent string)
@@ -15,7 +15,7 @@ type StandaloneTagNode interface {
 }
 
 // preprocessStandalone handles any node that can be standalone
-func (pp *SpecConformance) preprocessStandalone(t *Template, nodes []Node, index int, tagNode StandaloneTagNode) (err error) {
+func (pp *SpecConformance) preprocessStandalone(t *Template, nodes []Node, index int, tagNode StandaloneNode) (err error) {
 	var hasLeadingWhitespace bool
 	var text TextNode
 	var followedByNewline, isStandalone bool

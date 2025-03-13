@@ -2,31 +2,34 @@ package mustache
 
 type Stack[T any] struct {
 	items []T
+	n     int
 }
 
 func (s *Stack[T]) Push(item T) {
 	s.items = append(s.items, item)
+	s.n++
 }
 func (s *Stack[T]) Pop() T {
 	if len(s.items) == 0 {
 		return *new(T)
 	}
-	item := s.items[len(s.items)-1]
-	s.items = s.items[:len(s.items)-1]
+	s.n--
+	item := s.items[s.n]
+	s.items = s.items[:s.n]
 	return item
 }
 func (s *Stack[T]) Top() T {
 	if len(s.items) == 0 {
 		return *new(T)
 	}
-	return s.items[len(s.items)-1]
+	return s.items[s.n-1]
 }
 
 func (s *Stack[T]) Depth() int {
-	return len(s.items)
+	return s.n
 }
 func (s *Stack[T]) Empty() bool {
-	return len(s.items) == 0
+	return s.n == 0
 }
 
 type Cloner[T any] interface {

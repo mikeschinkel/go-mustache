@@ -1,15 +1,11 @@
 package mustache
 
 import (
-	"regexp"
 	"slices"
 	"strings"
 )
 
 var _ Preprocessor = (*SpecConformance)(nil)
-
-// newlineRegex matches both CR+LF and LF newlines
-var newlineRegex = regexp.MustCompile("(\r?\n)")
 
 // SpecConformance detects and marks standalone partials
 type SpecConformance struct {
@@ -26,14 +22,12 @@ func (pp *SpecConformance) Preprocess(t *Template, nodes []Node, index int) (err
 	case *SectionNode:
 		err = Preprocess(pp, t, node.Elems)
 	case *PartialNode:
-		// Keep existing partial handling
 		err = pp.preprocessStandalone(t, nodes, index, node)
 		pp.IndentStack.Pop()
 	case *OverrideNode:
-		err = pp.preprocessOverride(t, node)
+		err = pp.preprocessOverride(t, nodes, index, node)
 		pp.IndentStack.Pop()
-	case *InheritNode:
-		// Handle InheritNode as standalone tag
+	case *ParentNode:
 		err = pp.preprocessStandalone(t, nodes, index, node)
 		pp.IndentStack.Pop()
 	case LeadingWhitespaceNode:
@@ -190,7 +184,120 @@ end:
 	return err
 }
 
-func (pp *SpecConformance) preprocessOverride(t *Template, node *OverrideNode) (err error) {
-	return pp.indentNodes(t, node.Elems)
+func (pp *SpecConformance) preprocessOverride(t *Template, nodes []Node, index int, node *OverrideNode) (err error) {
+
+	// First check if this is a standalone tag
+	if pp.isStandaloneNode(nodes, index) {
+		err = pp.preprocessStandalone(t, nodes, index, node)
+	}
+	if err != nil {
+		goto end
+	}
+
+	node = nodes[index].(*OverrideNode)
+
+	// First normalize the content by removing common indentation
+	pp.normalizeOverrideContent(node)
+
+	// Then apply the indentation from the stack
+	err = pp.indentNodes(t, node.Elems)
+
+end:
+	return err
 }
 
+func (pp *SpecConformance) isStandaloneNode(nodes []Node, index int) bool {
+	_, hasLeadingWhitespace := pp.getLeadingWhitespace(nodes, index)
+	_, followedByNewline := pp.getFollowedByNewline(nodes, index)
+
+	// Handle the case where it's the last node
+	if !followedByNewline && index == len(nodes)-1 {
+		followedByNewline = true
+	}
+
+	return hasLeadingWhitespace && followedByNewline
+}
+
+func (pp *SpecConformance) normalizeOverrideContent(node *OverrideNode) {
+	if len(node.Elems) == 0 {
+		goto end
+	}
+	for i, elem := range node.Elems {
+		text, ok := elem.(TextNode)
+		if !ok {
+			continue
+		}
+		node.Elems[i] = pp.normalizeOverrideText(text)
+	}
+end:
+}
+
+func (pp *SpecConformance) normalizeOverrideText(text TextNode) (result TextNode) {
+	// First, remove common indentation
+	result = text.RemoveIndent()
+
+	// Then determine if we should add a trailing newline
+	if pp.shouldAddTrailingNewline(text, result) {
+		result += "\n"
+	}
+
+	return result
+}
+
+func (pp *SpecConformance) shouldAddTrailingNewline(original, processed TextNode) (shouldAdd bool) {
+	var s string
+	var lines []string
+	var emptyCount int
+
+	s = string(original)
+
+	// If original doesn't end with newline, don't add one
+	if !strings.HasSuffix(s, "\n") {
+		goto end
+	}
+
+	// If processed already has trailing newline, don't add another
+	if strings.HasSuffix(string(processed), "\n") {
+		goto end
+	}
+
+	// Check for the special case in Block reindentation
+	lines = strings.Split(s, "\n")
+
+	// If no lines or only one line, we should add the newline
+	if len(lines) <= 1 {
+		shouldAdd = true
+		goto end
+	}
+
+	// If last line has content, we should add the newline
+	if strings.TrimSpace(lines[len(lines)-1]) != "" {
+		shouldAdd = true
+		goto end
+	}
+
+	// Count trailing empty lines
+	emptyCount = 0
+	for i := len(lines) - 1; i >= 0; i-- {
+		if strings.TrimSpace(lines[i]) == "" {
+			emptyCount++
+		} else {
+			break
+		}
+	}
+
+	// For Block reindentation (one trailing empty line), don't add newline
+	// For Override parent with newlines (multiple empty lines), add newline
+	shouldAdd = emptyCount != 1
+
+end:
+	return shouldAdd
+}
+
+//func isLastLine(lines []string, index int) bool {
+//	return index == len(lines)-1
+//}
+//
+//func hasOnlyWhitespace(line, indent string) bool {
+//	return len(line) > 0 && len(line) == len(indent)
+//}

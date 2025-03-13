@@ -5,14 +5,14 @@ import (
 	"strings"
 )
 
-var _ StandaloneTagNode = (*InheritNode)(nil) // Type assertion to verify interface compliance
-var _ Node = (*InheritNode)(nil)
+var _ StandaloneNode = (*ParentNode)(nil) // Type assertion to verify interface compliance
+var _ Node = (*ParentNode)(nil)
 
-// InheritNode represents template inheritance in Mustache.
+// ParentNode represents template inheritance in Mustache.
 // It includes a parent template ({{<template}}) and allows for
-// block overrides within the inheriting template.
-type InheritNode struct {
-	// Name is the partial template to inherit from
+// block overrides within the parent template.
+type ParentNode struct {
+	// Name is the parent template
 	name string
 	// Overrides contains any block overrides defined in this template
 	Overrides Overrides
@@ -22,15 +22,15 @@ type InheritNode struct {
 	indent string
 }
 
-func NewInheritNode(name string, overrides Overrides) *InheritNode {
-	return &InheritNode{
+func NewParentNode(name string, overrides Overrides) *ParentNode {
+	return &ParentNode{
 		name:      name,
 		Overrides: overrides,
 	}
 }
 
-func (n *InheritNode) Clone() Node {
-	return &InheritNode{
+func (n *ParentNode) Clone() Node {
+	return &ParentNode{
 		name:         n.name,
 		Overrides:    n.Overrides.Clone(),
 		isStandalone: n.isStandalone,
@@ -38,17 +38,17 @@ func (n *InheritNode) Clone() Node {
 	}
 }
 
-// Render implements the Node interface for InheritNode.
+// Render implements the Node interface for ParentNode.
 // It loads the parent template, processes any block overrides,
 // and renders the combined result.
-func (n *InheritNode) Render(t *Template, w *Writer, c ...interface{}) (err error) {
-	var tmpl, inheritedTmpl *Template
+func (n *ParentNode) Render(t *Template, w *Writer, c ...interface{}) (err error) {
+	var tmpl, parent *Template
 	var found bool
 	var errs MultiErr
 	var overrides Overrides
 
 	// Push our overrides to the stack BEFORE rendering
-	// This way they'll be available to all nested InheritNodes
+	// This way they'll be available to all nested ParentNodes
 	overrides = t.pushOverrides(n.Overrides)
 
 	// Get the partial template
@@ -61,7 +61,7 @@ func (n *InheritNode) Render(t *Template, w *Writer, c ...interface{}) (err erro
 	// Clone the template to avoid modifying the original
 	// TODO: Does this need to be cloned?
 	//goland:noinspection GoDfaErrorMayBeNotNil
-	inheritedTmpl = tmpl.Clone()
+	parent = tmpl.Clone()
 
 	// Important: We need to process ANY inheritance within this template FIRST
 	// before applying our overrides
@@ -71,17 +71,17 @@ func (n *InheritNode) Render(t *Template, w *Writer, c ...interface{}) (err erro
 
 	// Apply the current overrides to the template
 	if len(overrides) > 0 {
-		// We need to find and replace block nodes in the inherited template
-		err = n.applyOverrides(inheritedTmpl, inheritedTmpl.Elems, overrides)
+		// We need to find and replace block nodes in the parent template
+		err = n.applyOverrides(parent, parent.Elems, overrides)
 		if err != nil {
 			errs.Add(err)
 		}
 	}
 
-	// Render the inherited template with the current context
+	// Render the parent template with the current context
 	// IMPORTANT: Render each element separately to maintain correct order
 	//            Using the same Writer ensures content appears in the correct order
-	for _, elem := range inheritedTmpl.Elems {
+	for _, elem := range parent.Elems {
 		err = elem.Render(t, w, c...)
 		if err != nil {
 			errs.Add(err)
@@ -95,15 +95,15 @@ end:
 	return err
 }
 
-// String returns a string representation of the InheritNode.
-func (n *InheritNode) String() string {
-	return fmt.Sprintf("[inherit: %q Overrides: %v]", n.name, n.Overrides)
+// String returns a string representation of the ParentNode.
+func (n *ParentNode) String() string {
+	return fmt.Sprintf("[parent: %q Overrides: %v]", n.name, n.Overrides)
 }
 
-// GetDerivedNodes returns the nodes from the template being inherited
+// GetDerivedNodes returns the nodes from the template being parent
 // Implement DerivedNodesGetter interface to support preprocessing
-func (n *InheritNode) GetDerivedNodes(t *Template) (elems []Node, err error) {
-	var tmpl, inheritedTmpl *Template
+func (n *ParentNode) GetDerivedNodes(t *Template) (elems []Node, err error) {
+	var tmpl, parent *Template
 	var found bool
 
 	// Get the partial template
@@ -120,22 +120,22 @@ func (n *InheritNode) GetDerivedNodes(t *Template) (elems []Node, err error) {
 
 	// Clone the template to avoid modifying the original
 	// TODO Does this need to be cloned?
-	inheritedTmpl = tmpl.Clone()
+	parent = tmpl.Clone()
 
 	// Apply any block overrides
 	if len(n.Overrides) > 0 {
-		// We need to find and replace block nodes in the inherited template
-		err = n.applyOverrides(inheritedTmpl, inheritedTmpl.Elems, n.Overrides)
+		// We need to find and replace block nodes in the parent template
+		err = n.applyOverrides(parent, parent.Elems, n.Overrides)
 		if err != nil {
 			goto end
 		}
 	}
-	elems = inheritedTmpl.Elems
+	elems = parent.Elems
 end:
 	return elems, err
 }
 
-func (n *InheritNode) applyOverride(_ *Template, nodes []Node, index int, overrides Overrides) (err error) {
+func (n *ParentNode) applyOverride(_ *Template, nodes []Node, index int, overrides Overrides) (err error) {
 	var indent string
 	var override []Node
 
@@ -160,7 +160,7 @@ func (n *InheritNode) applyOverride(_ *Template, nodes []Node, index int, overri
 
 	// Replace the block node with its override
 	nodes[index] = &OverrideNode{
-		Name:  block.Name,
+		name:  block.Name,
 		Elems: override,
 	}
 end:
@@ -170,7 +170,7 @@ end:
 // applyOverrides replaces block nodes in a template with override content.
 // It traverses the template's node tree and replaces BlockNodes with their
 // overridden content when found.
-func (n *InheritNode) applyOverrides(t *Template, nodes []Node, overrides Overrides) (err error) {
+func (n *ParentNode) applyOverrides(t *Template, nodes []Node, overrides Overrides) (err error) {
 	var kids []Node
 
 	for i, node := range nodes {
@@ -335,13 +335,13 @@ func (pp *SpecConformance) applyIndentationToChildNodes(nodes []Node, indent str
 	}
 }
 
-// Name returns the value of the name property of InheritNode
-func (n *InheritNode) Name() string {
+// Name returns the value of the name property of ParentNode
+func (n *ParentNode) Name() string {
 	return n.name
 }
 
-// SetStandalone implements the StandaloneTagNode interface for InheritNode
-func (n *InheritNode) SetStandalone(indent string) {
+// SetStandalone implements the StandaloneNode interface for ParentNode
+func (n *ParentNode) SetStandalone(indent string) {
 	n.isStandalone = true
 	n.indent = indent
 }

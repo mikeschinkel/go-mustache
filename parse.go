@@ -16,6 +16,16 @@ type Parser struct {
 	silentMiss bool
 }
 
+// NewParser creates a new Parser using the supplied lexer.
+func NewParser(l *Lexer) *Parser {
+	return &Parser{lexer: l}
+}
+
+// subParser creates a new parser with a pre-defined token buffer.
+func subParser(b []Token) *Parser {
+	return &Parser{buf: append(b, Token{Type: TokenEOF})}
+}
+
 // read returns the next token from the lexer and advances the cursor. This
 // token will not be available by the parser after it has been read.
 func (p *Parser) read() Token {
@@ -171,6 +181,12 @@ func (p *Parser) Parse() (nodes []Node, err error) {
 		}
 	}
 end:
+	if len(nodes) != 0 {
+		if _, ok := nodes[len(nodes)-1].(LeadingWhitespaceNode); ok {
+			// Remove leading whitespace nodes if they are the last node
+			nodes = nodes[:len(nodes)-1]
+		}
+	}
 	return nodes, err
 }
 
@@ -242,24 +258,10 @@ func (p *Parser) parseInherit() (node Node, err error) {
 	}
 
 	// Create the inheritance node with any block overrides
-	node = NewInheritNode(t.Value, extractBlockOverrides(nodes))
+	node = NewParentNode(t.Value, extractBlockOverrides(nodes))
 
 end:
 	return node, err
-}
-
-// extractBlockOverrides processes a list of nodes to find block definitions
-// and returns them as a map of block name to block content nodes.
-func extractBlockOverrides(nodes []Node) map[string][]Node {
-	overrides := make(map[string][]Node)
-	for _, n := range nodes {
-		block, ok := n.(*BlockNode)
-		if !ok {
-			continue
-		}
-		overrides[block.Name] = block.Elems
-	}
-	return overrides
 }
 
 // parseDot handles a standalone dot token, which represents the current context
@@ -644,14 +646,4 @@ func (p *Parser) parsePartial() (node Node, err error) {
 
 end:
 	return node, err
-}
-
-// NewParser creates a new Parser using the supplied lexer.
-func NewParser(l *Lexer) *Parser {
-	return &Parser{lexer: l}
-}
-
-// subParser creates a new parser with a pre-defined token buffer.
-func subParser(b []Token) *Parser {
-	return &Parser{buf: append(b, Token{Type: TokenEOF})}
 }

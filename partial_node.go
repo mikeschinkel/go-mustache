@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var _ StandaloneTagNode = (*PartialNode)(nil)
+var _ StandaloneNode = (*PartialNode)(nil)
 var _ Node = (*PartialNode)(nil)
 
 // The PartialNode type represents a named partial template.

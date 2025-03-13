@@ -4,11 +4,30 @@ import (
 	"fmt"
 )
 
+// Ensure OverrideNode implements StandaloneNode
+var _ StandaloneNode = (*OverrideNode)(nil)
+
+func (o *OverrideNode) SetStandalone(indent string) {
+	// Set this node as standalone with given indent
+	o.isStandalone = true
+	o.indent = indent
+}
+
+func (o *OverrideNode) Name() string {
+	return o.name // Return the block name
+}
+
+func (o *OverrideNode) GetDerivedNodes(_ *Template) ([]Node, error) {
+	return o.Elems, nil
+}
+
 // OverrideNode represents a block that has been overridden.
 // It behaves like a BlockNode but contains the override content.
 type OverrideNode struct {
-	Name  string
-	Elems []Node
+	name         string
+	isStandalone bool
+	indent       string
+	Elems        []Node
 }
 
 func (n *OverrideNode) Render(t *Template, w *Writer, c ...interface{}) error {
@@ -26,7 +45,7 @@ func (n *OverrideNode) Render(t *Template, w *Writer, c ...interface{}) error {
 
 func (n *OverrideNode) Clone() Node {
 	clone := &OverrideNode{
-		Name:  n.Name,
+		name:  n.name,
 		Elems: make([]Node, len(n.Elems)),
 	}
 
@@ -38,5 +57,5 @@ func (n *OverrideNode) Clone() Node {
 }
 
 func (n *OverrideNode) String() string {
-	return fmt.Sprintf("[override: %q Elems: %v]", n.Name, n.Elems)
+	return fmt.Sprintf("[override: %q Elems: %v]", n.name, n.Elems)
 }

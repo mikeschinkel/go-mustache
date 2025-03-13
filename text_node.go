@@ -2,6 +2,7 @@ package mustache
 
 import (
 	"fmt"
+	"strings"
 )
 
 var _ Node = (*TextNode)(nil)
@@ -11,8 +12,8 @@ var _ Node = (*TextNode)(nil)
 // TextNode is implemented as a string alias, storing the raw text content.
 type TextNode string
 
-func (n TextNode) Clone() Node {
-	return n
+func (tn TextNode) Clone() Node {
+	return tn
 }
 
 // Render implements the Node interface for TextNode.
@@ -21,8 +22,8 @@ func (n TextNode) Clone() Node {
 // This marking is important for proper standalone tag handling.
 //
 //goland:noinspection GoUnusedParameter
-func (n TextNode) Render(t *Template, w *Writer, c ...interface{}) error {
-	text := string(n)
+func (tn TextNode) Render(t *Template, w *Writer, c ...interface{}) error {
+	text := string(tn)
 	for _, r := range text {
 		if !whitespace(r) {
 			w.text()
@@ -36,6 +37,62 @@ func (n TextNode) Render(t *Template, w *Writer, c ...interface{}) error {
 }
 
 // String returns a string representation of the TextNode for debugging.
-func (n TextNode) String() string {
-	return fmt.Sprintf("[text: %q]", string(n))
+func (tn TextNode) String() string {
+	return fmt.Sprintf("[text: %q]", string(tn))
+}
+
+// Indent returns the common whitespace prefix for all non-empty lines in the TextNode
+func (tn TextNode) Indent(lines ...[]string) (s string) {
+	if len(lines) != 0 {
+		s, _ = tn.indent(lines[0])
+		goto end
+	}
+	s, _ = tn.indent(strings.Split(string(tn), "\n"))
+end:
+	return s
+}
+
+// RemoveIndent removes the common indentation from all lines in the TextNode
+func (tn TextNode) RemoveIndent(lines ...[]string) (text TextNode) {
+	var ll []string
+	if len(lines) != 0 {
+		ll = lines[0]
+	} else {
+		s := string(tn)
+		ll = strings.Split(s, "\n")
+	}
+	indent, empties := tn.indent(ll)
+	if indent == "" {
+		goto end
+	}
+
+	for i, line := range ll {
+		if empties[i] {
+			continue
+		}
+		if !strings.HasPrefix(line, indent) {
+			continue
+		}
+		ll[i] = line[len(indent):]
+	}
+	text = TextNode(strings.Join(ll, "\n"))
+end:
+	return text
+}
+
+func (tn TextNode) indent(lines []string) (indent string, empties []bool) {
+	empties = make([]bool, len(lines))
+	// Find the shortest indent for all lines
+	for i, line := range lines {
+		lineIndent := leadingWhitespace(line)
+		if len(lineIndent) == len(line) {
+			empties[i] = true
+			continue
+		}
+		if indent != "" && len(indent) < len(lineIndent) {
+			continue
+		}
+		indent = lineIndent
+	}
+	return indent, empties
 }
