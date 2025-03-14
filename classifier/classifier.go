@@ -13,11 +13,12 @@ const (
 )
 
 type TemplateClassifier struct {
-	template   string
-	openDelim  string
-	closeDelim string
-	lines      Lines
-	tagStack   Stack[Tag]
+	template      string
+	openDelim     string
+	closeDelim    string
+	templateLines []string
+	lines         Lines
+	tagStack      Stack[Tag]
 }
 
 // PastEOT returns true if the line number is past the end of template
@@ -46,17 +47,18 @@ func (tc *TemplateClassifier) Initialize() (err error) {
 		contentLines := crlfRegex.Split(tc.template, -1)
 		if contentLines == nil && len(tc.template) != 0 {
 			tc.lines = Lines{{
-				Template: tc.template,
 				Segments: make(Segments, 0),
 			}}
+			tc.templateLines = []string{tc.template}
 			goto end
 		}
+		tc.templateLines = make([]string, len(contentLines))
 		tc.lines = make([]Line, len(contentLines))
 		for i := range tc.lines {
 			tc.lines[i] = Line{
-				Template: contentLines[i],
 				Segments: make(Segments, 0),
 			}
+			tc.templateLines[i] = contentLines[i]
 		}
 		goto end
 	}
@@ -336,7 +338,7 @@ end:
 // after, i.e. for `{{foo}}bar` *pos would be 7 and its character would be 'b'.
 func (tc *TemplateClassifier) maybeEatTagClosingDelimiters(lineNo *int, pos *int, tagType OpenTagType) (err error) {
 	var name string
-	t := tc.lines[*lineNo].Template
+	t := tc.templateLines[*lineNo]
 	switch tagType {
 	case DelimiterOpen:
 		if len(t)-*pos >= 2 && t[*pos:*pos+2] == tc.closeDelim {
@@ -382,7 +384,7 @@ end:
 }
 
 func (tc *TemplateClassifier) getOpenTagType(lineNo, pos *int) (ott OpenTagType) {
-	t := tc.lines[*lineNo].Template
+	t := tc.templateLines[*lineNo]
 	remaining := len(t) - *pos
 
 	if remaining < 2 {
@@ -434,61 +436,17 @@ end:
 	return err
 }
 
-// ProcessTag processes a tag after the opening delimiter has been processed
-// Typically this means starting with the tag type character, e.g. #, ^, $, !, etc.
-func (tc *TemplateClassifier) parseTag(lineNo, pos *int) (tagClosed bool, line Line, err error) {
-
-	line = tc.lines[*lineNo]
-
-	if !tc.PastEOL(lineNo, pos) {
-		*lineNo++
-		*pos = 0
-	}
-	if *lineNo >= len(tc.lines) {
-		goto end
-	}
-	line = tc.lines[*lineNo]
-	tagClosed = true
-	switch line.Template[*pos] {
-	case '.': // Dot
-		err = tc.parseDots(lineNo, pos)
-	case '>': // Partial
-		err = tc.parsePartials(lineNo, pos)
-	case '=': // Set Delimiter
-		err = tc.parseSetDelimiters(lineNo, pos)
-	case '!': // Comments
-		err = tc.parseComments(lineNo, pos)
-	case '&': // Unescaped
-		err = tc.parseUnescaped(lineNo, pos)
-	case '#': // Section
-		err = tc.parseSections(lineNo, pos)
-	case '^': // Inverted Section
-		err = tc.parseInvertedSections(lineNo, pos)
-	case '<': // Parent
-		err = tc.parseParents(lineNo, pos)
-	case '$': // Block
-		err = tc.parseBlocks(lineNo, pos)
-	case '/': // Closing
-		err = tc.parseClosings(lineNo, pos)
-	default:
-		tagClosed = false
-		//err = tc.parseVars(lineNo, pos)
-	}
-end:
-	return tagClosed, tc.lines[*lineNo], err
-}
-
 func (tc *TemplateClassifier) parseUnescaped(lineNo *int, pos *int) (err error) {
-	line := tc.lines[*lineNo]
+	tl := tc.templateLines[*lineNo]
 	for !tc.PastEOL(lineNo, pos) {
 		*pos++
-		if line.Template[*pos] != tc.closeDelim[0] {
+		if tl[*pos] != tc.closeDelim[0] {
 			continue
 		}
 		break
 	}
 	if tc.PastEOL(lineNo, pos) {
-		err = fmt.Errorf("ERROR: closing delimiters not found for line '%s'", line.Template)
+		err = fmt.Errorf("ERROR: closing delimiters not found for line '%s'", tl)
 		goto end
 	}
 	tc.AddSegment(lineNo, Segment{TagType: AmpersandUnescaped})
@@ -832,36 +790,38 @@ func (tc *TemplateClassifier) AddSegment(lineNo *int, segment Segment) {
 	tc.lines[*lineNo].Segments = append(tc.lines[*lineNo].Segments, segment)
 }
 func (tc *TemplateClassifier) ensureLines(lineNo *int) {
-	if *lineNo+1 > len(tc.lines) {
-		tc.lines = make(Lines, *lineNo+1)
+	nextLineNo := *lineNo + 1
+	if nextLineNo > len(tc.lines) {
+		tc.templateLines = make([]string, nextLineNo)
+		tc.lines = make(Lines, nextLineNo)
 	}
 }
 func (tc *TemplateClassifier) line(lineNo *int) *Line {
 	return &tc.lines[*lineNo]
 }
 func (tc *TemplateClassifier) Template(lineNo *int) string {
-	return tc.lines[*lineNo].Template
+	return tc.templateLines[*lineNo]
 }
 func (tc *TemplateClassifier) LineType(lineNo *int) LineType {
 	return tc.lines[*lineNo].Type
 }
 func (tc *TemplateClassifier) TemplateSubstring(lineNo *int, begin, end int) string {
-	return tc.lines[*lineNo].Template[begin:end]
+	return tc.templateLines[*lineNo][begin:end]
 }
 func (tc *TemplateClassifier) char(lineNo, pos *int) byte {
-	return tc.lines[*lineNo].Template[*pos]
+	return tc.templateLines[*lineNo][*pos]
 }
 func (tc *TemplateClassifier) lineLen(lineNo *int) int {
-	return len(tc.lines[*lineNo].Template)
+	return len(tc.templateLines[*lineNo])
 }
 func (tc *TemplateClassifier) isEmptyLine(lineNo *int) bool {
-	return len(tc.lines[*lineNo].Template) == 0
+	return len(tc.templateLines[*lineNo]) == 0
 }
 func (tc *TemplateClassifier) AtEOL(lineNo, pos *int) bool {
-	return tc.lines[*lineNo].AtEOL(pos)
+	return tc.lines[*lineNo].AtEOL(pos, tc.lineLen(lineNo))
 }
 func (tc *TemplateClassifier) PastEOL(lineNo, pos *int) bool {
-	return tc.lines[*lineNo].PastEOL(pos)
+	return tc.lines[*lineNo].PastEOL(pos, tc.lineLen(lineNo))
 }
 func (tc *TemplateClassifier) LineSegments(lineNo *int) (ss Segments) {
 	return tc.lines[*lineNo].Segments
