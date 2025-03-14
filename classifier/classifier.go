@@ -17,7 +17,7 @@ type TemplateClassifier struct {
 	openDelim  string
 	closeDelim string
 	lines      Lines
-	tagStack   mustache.Stack[Tag]
+	tagStack   Stack[Tag]
 }
 
 // PastEOT returns true if the line number is past the end of template
@@ -66,6 +66,7 @@ func (tc *TemplateClassifier) Initialize() (err error) {
 		line.Type = InvalidLineType
 		tc.lines[i] = line
 	}
+	tc.tagStack = Stack[Tag]{}
 end:
 	return err
 }
@@ -87,6 +88,9 @@ func (tc *TemplateClassifier) Classify() (_ Lines, err error) {
 		}
 	}
 end:
+	if tc.tagStack.Depth() != 0 {
+		errs.Add(fmt.Errorf("unclosed tags: %s", &tc.tagStack))
+	}
 	return tc.lines, errs.Err()
 }
 
@@ -331,6 +335,7 @@ end:
 // set as custom delimiters and leaves *pos pointing to the character immediately
 // after, i.e. for `{{foo}}bar` *pos would be 7 and its character would be 'b'.
 func (tc *TemplateClassifier) maybeEatTagClosingDelimiters(lineNo *int, pos *int, tagType OpenTagType) (err error) {
+	var name string
 	t := tc.lines[*lineNo].Template
 	switch tagType {
 	case DelimiterOpen:
@@ -339,16 +344,18 @@ func (tc *TemplateClassifier) maybeEatTagClosingDelimiters(lineNo *int, pos *int
 			goto end
 		}
 		// Not a valid closing delimiter
+		name = "delimiter"
 	case TripleBraceOpen:
 		if len(t)-*pos >= 3 && t[*pos:*pos+3] == TripleBraceEnd {
 			*pos += 3
 			goto end
 		}
 		// Not a valid closing triple brace
+		name = "triple-brace"
 	case InvalidOpenTag:
 		// This is an error so just run the next line
 	}
-	err = fmt.Errorf("invalid closing tag for %s in line %s", tagType, tc.Template(lineNo))
+	err = fmt.Errorf("invalid closing %s tag in '%s'", name, tc.Template(lineNo))
 end:
 	return err
 }
@@ -363,7 +370,7 @@ func (tc *TemplateClassifier) maybeEatIdentifier(lineNo *int, pos *int) (identif
 				err = fmt.Errorf("tag identifier is empty in line %s", tc.Template(lineNo))
 				goto end
 			}
-			identifier = tc.TemplateSegment(lineNo, begin, *pos)
+			identifier = tc.TemplateSubstring(lineNo, begin, *pos)
 			goto end
 		default:
 			// Not a special char, so advance to next position and keep maybe eating text
@@ -392,11 +399,11 @@ func (tc *TemplateClassifier) getOpenTagType(lineNo, pos *int) (ott OpenTagType)
 	}
 	if remaining < 3 || t[*pos+2] != TripleBraceBegin[2] {
 		// If less than 3 characters left, can't be an open triple brace
-		if TripleBraceBegin[0] != tc.openDelim[0] {
+		if t[*pos] != tc.openDelim[0] {
 			// Cannot be an open tag if these don't match
 			goto end
 		}
-		if TripleBraceBegin[1] != tc.openDelim[1] {
+		if t[*pos+1] != tc.openDelim[1] {
 			// Cannot be an open tag if these don't match
 			goto end
 		}
@@ -610,7 +617,7 @@ func (tc *TemplateClassifier) eatFullComment(lineNo *int, pos *int, firstLine bo
 			multiline = true
 			tc.addCommentSegment(*lineNo-1, multiline, MultilineBegin, firstLine, MultilineMiddle)
 		case EOT:
-			err = fmt.Errorf("invalid comment tag in template line '%s'", tc.line(lineNo))
+			err = fmt.Errorf("invalid comment tag in template '%s'", tc.template)
 			goto end
 		case NotAtEnd:
 			if tc.char(lineNo, pos) != tc.closeDelim[0] {
@@ -728,37 +735,52 @@ func (tc *TemplateClassifier) parseBlocks(lineNo *int, pos *int) (err error) {
 	return tc.parseEnclosingBeginTag(lineNo, pos, BlockTag)
 }
 
+type numeric interface {
+	int | int8 | int16 | int32 | int64 | float32 | float64
+}
+
 // Process set delimiter tags (=)
 func (tc *TemplateClassifier) parseSetDelimiters(lineNo *int, pos *int) (err error) {
-	// Mark set delimiter tag
-	tc.AddSegment(lineNo, Segment{TagType: DelimiterTag})
+	var newOpen, newClose string
+	var et EndType
 
-	// Parse new delimiters
-	line := tc.lines[*lineNo]
-	startPos := *pos
-
-	// Find the closing = and delimiter
-	for ; *pos < line.Len(); *pos++ {
-		if line.Template[*pos] == '=' && *pos+1 < line.Len() && line.Template[*pos+1] == tc.closeDelim[0] {
-			// Found closing =
-			break
+	for {
+		endOfDelimiter := addToPtr(pos, 2)
+		if tc.PastEOL(lineNo, endOfDelimiter) {
+			err = fmt.Errorf("invalid delimiters parsing custom delimiters in line '%s'", tc.line(lineNo))
+			goto end
+		}
+		et = tc.pastEnd(lineNo, pos)
+		switch et {
+		case EOL:
+			err = fmt.Errorf("unexpected end of line (EOL) parsing custom delimiters in line '%s'", tc.line(lineNo))
+			goto end
+		case EOT:
+			err = fmt.Errorf("unexpected end of template (EOT) parsing custom delimiters in line '%s'", tc.line(lineNo))
+			goto end
+		case NotAtEnd:
+			if tc.char(lineNo, pos) != '=' {
+				*pos++
+				continue
+			}
+			*pos++
+			if newOpen == "" {
+				// Extract the new closing template
+				newOpen = tc.TemplateSubstring(lineNo, *pos, *pos+2)
+				*pos += 2
+				continue
+			}
+			// Extract the new closing template
+			newClose = tc.TemplateSubstring(lineNo, *pos-3, *pos-1)
+			err = tc.maybeEatTagClosingDelimiters(lineNo, pos, DelimiterOpen)
+			tc.openDelim = newOpen
+			tc.closeDelim = newClose
+			tc.AddSegment(lineNo, Segment{Type: CompleteTag, TagType: DelimiterTag})
+			goto end
 		}
 	}
-
-	if *pos >= line.Len() {
-		return fmt.Errorf("failed to find closing = for set delimiter tag")
-	}
-
-	// Extract and set the new delimiters
-	delimContent := line.Template[startPos:*pos]
-	// Parse delimContent to extract new opening and closing delimiters
-	// This might need whitespace trimming and validation
-	noop(delimContent)
-
-	// Skip past the = and closing delimiter
-	*pos += len(tc.closeDelim) + 1
-
-	return nil
+end:
+	return err
 }
 
 // Process dot tags (.)
@@ -823,7 +845,7 @@ func (tc *TemplateClassifier) Template(lineNo *int) string {
 func (tc *TemplateClassifier) LineType(lineNo *int) LineType {
 	return tc.lines[*lineNo].Type
 }
-func (tc *TemplateClassifier) TemplateSegment(lineNo *int, begin, end int) string {
+func (tc *TemplateClassifier) TemplateSubstring(lineNo *int, begin, end int) string {
 	return tc.lines[*lineNo].Template[begin:end]
 }
 func (tc *TemplateClassifier) char(lineNo, pos *int) byte {

@@ -6,17 +6,20 @@ import (
 )
 
 var (
-	whitespaceSegment   = Segment{Type: Whitespace}
-	textContentSegment  = Segment{Type: TextContent}
-	varTagSegment       = Segment{TagType: VarTag}
-	sectionBeginSegment = Segment{TagType: SectionTag, Type: BeginTag}
-	sectionEndSegment   = Segment{TagType: SectionTag, Type: EndTag}
-	partialTagSegment   = Segment{TagType: PartialTag}
-	parentBeginSegment  = Segment{TagType: ParentTag, Type: BeginTag}
-	parentEndSegment    = Segment{TagType: ParentTag, Type: EndTag}
-	blockBeginSegment   = Segment{TagType: BlockTag, Type: BeginTag}
-	blockEndSegment     = Segment{TagType: BlockTag, Type: EndTag}
-	commentTagSegment   = Segment{TagType: CommentTag}
+	whitespaceSegment           = Segment{Type: Whitespace}
+	textContentSegment          = Segment{Type: TextContent}
+	varTagSegment               = Segment{TagType: VarTag}
+	sectionBeginSegment         = Segment{TagType: SectionTag, Type: BeginTag}
+	sectionEndSegment           = Segment{TagType: SectionTag, Type: EndTag}
+	sectionBeginInvertedSegment = Segment{TagType: InvertedSectionTag, Type: BeginTag}
+	sectionEndInvertedSegment   = Segment{TagType: InvertedSectionTag, Type: EndTag}
+	partialTagSegment           = Segment{TagType: PartialTag}
+	parentBeginSegment          = Segment{TagType: ParentTag, Type: BeginTag}
+	parentEndSegment            = Segment{TagType: ParentTag, Type: EndTag}
+	blockBeginSegment           = Segment{TagType: BlockTag, Type: BeginTag}
+	blockEndSegment             = Segment{TagType: BlockTag, Type: EndTag}
+	delimiterTagSegment         = Segment{TagType: DelimiterTag}
+	commentTagSegment           = Segment{TagType: CommentTag}
 
 	tripleBraceUnescapedSegment = Segment{TagType: TripleBraceUnescaped}
 	ampersandUnescapedSegment   = Segment{TagType: AmpersandUnescaped}
@@ -24,17 +27,20 @@ var (
 	tripleBraceUnescapedSegments = Segments{tripleBraceUnescapedSegment}
 	ampersandUnescapedSegments   = Segments{ampersandUnescapedSegment}
 
-	whitespaceSegments   = Segments{whitespaceSegment}
-	varTagSegments       = Segments{varTagSegment}
-	textContentSegments  = Segments{textContentSegment}
-	sectionBeginSegments = Segments{sectionBeginSegment}
-	sectionEndSegments   = Segments{sectionEndSegment}
-	partialTagSegments   = Segments{partialTagSegment}
-	parentBeginSegments  = Segments{parentBeginSegment}
-	parentEndSegments    = Segments{parentEndSegment}
-	blockBeginSegments   = Segments{blockBeginSegment}
-	blockEndSegments     = Segments{blockEndSegment}
-	commentTagSegments   = Segments{commentTagSegment}
+	whitespaceSegments           = Segments{whitespaceSegment}
+	varTagSegments               = Segments{varTagSegment}
+	textContentSegments          = Segments{textContentSegment}
+	delimiterTagSegments         = Segments{delimiterTagSegment}
+	sectionBeginSegments         = Segments{sectionBeginSegment}
+	sectionEndSegments           = Segments{sectionEndSegment}
+	sectionBeginInvertedSegments = Segments{sectionBeginInvertedSegment}
+	sectionEndInvertedSegments   = Segments{sectionEndInvertedSegment}
+	partialTagSegments           = Segments{partialTagSegment}
+	parentBeginSegments          = Segments{parentBeginSegment}
+	parentEndSegments            = Segments{parentEndSegment}
+	blockBeginSegments           = Segments{blockBeginSegment}
+	blockEndSegments             = Segments{blockEndSegment}
+	commentTagSegments           = Segments{commentTagSegment}
 
 	multilineCommentBegin   = Segment{Type: MultilineBegin, TagType: CommentTag}
 	multilineCommentMiddle  = Segment{Type: MultilineMiddle, TagType: CommentTag}
@@ -49,6 +55,7 @@ func TestTemplateClassifier(t *testing.T) {
 		name     string
 		template string
 		want     Lines
+		error    string
 		comment  string
 	}{
 		{
@@ -791,21 +798,160 @@ func TestTemplateClassifier(t *testing.T) {
 			},
 			comment: "Multiple empty lines between tags; trailing newline creates an empty line",
 		},
+		{
+			name:     "Inverted Section - No content",
+			template: "{{^section}}\n{{/section}}",
+			want: Lines{
+				0: {Type: StandaloneLine, Segments: sectionBeginInvertedSegments},
+				1: {Type: StandaloneLine, Segments: sectionEndInvertedSegments},
+			},
+			comment: "Inverted section without content should be standalone",
+		},
+		{
+			name:     "Inverted Section - No content with trailing newline",
+			template: "{{^section}}\n{{/section}}\n",
+			want: Lines{
+				0: {Type: StandaloneLine, Segments: sectionBeginInvertedSegments},
+				1: {Type: StandaloneLine, Segments: sectionEndInvertedSegments},
+				2: {Type: EmptyLine},
+			},
+			comment: "Inverted section without content should be standalone with trailing newline",
+		},
+		{
+			name:     "Inverted Section - With content",
+			template: "{{^section}}\n  Content\n{{/section}}",
+			want: Lines{
+				0: {Type: StandaloneLine, Segments: sectionBeginInvertedSegments},
+				1: {Type: TextLine, Segments: Segments{whitespaceSegment, textContentSegment}},
+				2: {Type: StandaloneLine, Segments: sectionEndInvertedSegments},
+			},
+			comment: "Inverted section with content should have a standalone opening and closing line",
+		},
+		{
+			name:     "Inverted Section - With content and trailing newline",
+			template: "{{^section}}\n  Content\n{{/section}}\n",
+			want: Lines{
+				0: {Type: StandaloneLine, Segments: sectionBeginInvertedSegments},
+				1: {Type: TextLine, Segments: Segments{whitespaceSegment, textContentSegment}},
+				2: {Type: StandaloneLine, Segments: sectionEndInvertedSegments},
+				3: {Type: EmptyLine},
+			},
+			comment: "Inverted section with content should have a standalone opening and closing line and trailing newline",
+		},
+		{
+			name:     "Custom Delimiters",
+			template: "{{=<% %>=}}\n<%tag%>",
+			want: Lines{
+				0: {Type: StandaloneLine, Segments: delimiterTagSegments},
+				1: {Type: StandaloneLine, Segments: varTagSegments},
+			},
+			comment: "Custom delimiters should be recognized correctly",
+		},
+		{
+			name:     "Custom Delimiters with trailing newline",
+			template: "{{=<% %>=}}\n<%tag%>\n",
+			want: Lines{
+				0: {Type: StandaloneLine, Segments: delimiterTagSegments},
+				1: {Type: StandaloneLine, Segments: varTagSegments},
+				2: {Type: EmptyLine},
+			},
+			comment: "Custom delimiters should be recognized correctly with trailing newline",
+		},
+		{
+			name:     "Custom Delimiters with inline text",
+			template: "{{=<% %>=}}\nText <%tag%> more text",
+			want: Lines{
+				0: {Type: StandaloneLine, Segments: delimiterTagSegments},
+				1: {Type: InlineLine, Segments: Segments{textContentSegment, varTagSegment, textContentSegment}},
+			},
+			comment: "Custom delimiters with inline text should parse correctly",
+		},
+		{
+			name:     "Custom Delimiters with inline text",
+			template: "{{=<% %>=}}\nText <%tag%> more text with trailing newline\n",
+			want: Lines{
+				0: {Type: StandaloneLine, Segments: delimiterTagSegments},
+				1: {Type: InlineLine, Segments: Segments{textContentSegment, varTagSegment, textContentSegment}},
+				2: {Type: EmptyLine},
+			},
+			comment: "Custom delimiters with inline text should parse correctly with trailing newline",
+		},
+		{
+			name:     "Unclosed Section",
+			template: "{{#section}}\nContent",
+			error:    "unclosed tags: [tag: {name: 'section', type: 'SectionTag'}]",
+			comment:  "Unclosed sections should result in an invalid line type",
+		},
+		{
+			name:     "Unclosed Inverted Section",
+			template: "{{^section}}\nContent",
+			error:    "unclosed tags: [tag: {name: 'section', type: 'InvertedSectionTag'}]",
+			comment:  "Unclosed inverted sections should result in an invalid line type",
+		},
+		{
+			name:     "Unclosed Comment",
+			template: "{{! This is an unclosed comment",
+			error:    "unclosed tags: [tag: {name: 'section', type: 'InvertedSectionTag'}]",
+			comment:  "Unclosed comments should result in an invalid line type",
+		},
+		{
+			name:     "Unclosed Variable",
+			template: "{{var",
+			error:    "invalid closing delimiter tag in '{{var'",
+			comment:  "Unclosed variables should result in an invalid line type",
+		},
+		{
+			name:     "Unclosed Triple-Brace Variable",
+			template: "{{{tb_var",
+			error:    "invalid closing triple-brace tag in '{{{tb_var'",
+			comment:  "Unclosed triple-brace variables should result in an invalid line type",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			classifier := NewTemplateClassifier(tt.template)
 			got, err := classifier.Classify()
-			if err != nil {
-				t.Error(err.Error())
-				return
-			}
-
-			if !got.Equal(tt.want) {
-				showMismatch(t, got.Normalize(), tt.want.Normalize(), tt.template, tt.comment)
+			switch wantError(tt.error) {
+			case NO:
+				switch {
+				case err != nil:
+					t.Error(err.Error())
+				case !got.Equal(tt.want):
+					showMismatch(t, got.Normalize(), tt.want.Normalize(), tt.template, tt.comment)
+				}
+			case YES:
+				if err == nil {
+					checkError(t, err, tt.error, tt.template, tt.comment)
+				}
 			}
 		})
+	}
+}
+
+const (
+	YES = 'y'
+	NO  = 'n'
+)
+
+func wantError(error string) byte {
+	if error == "" {
+		return NO
+	}
+	return YES
+}
+
+func checkError(t *testing.T, got error, want string, template, comment string) {
+	if got == nil {
+		t.Errorf("ERROR:"+
+			"\n\tWant Error: %v"+
+			"\n\tGot:        <No Error>"+
+			"\n\tTemplate:   %q"+
+			"\n\tComment:    %s\n",
+			want,
+			template,
+			comment,
+		)
 	}
 }
 
