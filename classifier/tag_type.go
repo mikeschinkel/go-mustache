@@ -1,51 +1,70 @@
 package classifier
 
+// TagTypes is a collection of TagType values.
 type TagTypes []TagType
 
-// TagType represent the type of tag for a segment
-type TagType uint8 // Now fits into 4 bits
+// TagType represents the semantic meaning of a tag in a Mustache template. Each
+// tag type occupies the upper 4 bits in a Segment's bitmap representation.
+type TagType uint8 // Fits into 4 bits
 
+// IsValid determines if a TagType represents a semantically valid tag type.
+// NotApplicable is the zero value for TagType which indicates that a Segment
+// does not have one of the tag types defined by the Mustache spec.
 func (tt TagType) IsValid() (valid bool) {
-	switch tt {
-	case NotApplicable, NonEnclosingTagType, IgnoredTagType:
-		// accept zero value for valid
-	default:
-		valid = true
-	}
-	return valid
+	return tt != NotApplicable
 }
 
 const (
-	NotApplicable        TagType = iota
-	AmpersandUnescaped           // {{&tag}}:       Unescaped tag with ampersand syntax: {{&tag}}
-	BlockTag                     // {{$block}}:     Block definition tag with dollar syntax: {{$block}}
-	CommentTag                   // {{! comment }}: Comment tag with exclamation point syntax: {{! Comment goes here}}
-	SetDelimiterTag              // {{=< >=}}:      Delimiter setting tag with equals syntax: {{=< >=}}
-	DotTag                       // {{.}}:          Current context tag with dot syntax: {{.}}
-	InvertedSectionTag           // {{^section}}:   Inverted section tag with caret syntax: {{^section}}
-	ParentTag                    // {{/parent}}:    Parent template tag end for inheritance with slash syntax: {{/parent}}
-	PartialTag                   // {{>partial}}:   Partial inclusion tag with greater-than syntax: {{>partial}}
-	VarTag                       // {{var}}:        Variable tag {{var}}
-	SectionTag                   // {{#section}}:   Section tag with hash syntax: {{#section}}
-	TripleBraceUnescaped         // {{{tag}}}:      Unescaped tag with triple brace syntax: {{{tag}}}
-	NonEnclosingTagType          // Used when a tag type is needed but is not a enclosing tag type
-	IgnoredTagType               // Used by Normalize() so that String() will return ""
+	// NotApplicable represents a tag type that is not applicable. Not applicable is
+	// used with segment types TextContent and Whitespace.
+	NotApplicable TagType = iota
+
+	// AmpersandUnescaped represents an unescaped variable tag using ampersand
+	// syntax: {{&tag}}
+	AmpersandUnescaped
+
+	// BlockTag represents a block definition tag with dollar syntax:
+	// {{$block}}...{{/block}}
+	BlockTag
+
+	// CommentTag represents a comment tag with exclamation point syntax:
+	// {{! Comment goes here}}
+	CommentTag
+
+	// SetDelimiterTag represents a delimiter setting tag that uses the equals
+	// character, e.g.: {{=<% %>=}}
+	SetDelimiterTag
+
+	// DotTag represents a current context tag with dot syntax: {{.}}
+	DotTag
+
+	// InvertedSectionTag represents an inverted section tag with caret syntax:
+	// {{^section}}...{{/section}}
+	InvertedSectionTag
+
+	// ParentTag represents a parent template tag for inheritance:
+	// {{<parent}}...{{/parent}}
+	ParentTag
+
+	// PartialTag represents a partial inclusion tag with greater-than syntax:
+	// {{>partial}}
+	PartialTag
+
+	// VarTag represents a standard variable tag: {{var}}
+	VarTag
+
+	// SectionTag represents a section tag with hash syntax:
+	// {{#section}}...{{/section}}
+	SectionTag
+
+	// TripleBraceUnescaped represents an unescaped variable tag with triple brace
+	// syntax: {{{tag}}}
+	TripleBraceUnescaped
 )
 
-var enclosingTagTypes = map[TagType]struct{}{
-	BlockTag:           {},
-	InvertedSectionTag: {},
-	ParentTag:          {},
-	SectionTag:         {},
-}
-
-//goland:noinspection GoUnusedFunction
-func isEnclosingTagType(tt TagType) bool {
-	_, ok := enclosingTagTypes[tt]
-	return ok
-}
-
-// String returns a human-readable representation of Tag for debugging
+// String returns a human-readable representation of TagType for error messages
+// and test output. NotApplicable returns an empty strings to support ignoring
+// in test output.
 func (tt TagType) String() string {
 	switch tt {
 	case AmpersandUnescaped:
@@ -70,9 +89,7 @@ func (tt TagType) String() string {
 		return "SectionTag"
 	case TripleBraceUnescaped:
 		return "TripleBraceUnescaped"
-	case NonEnclosingTagType:
-		return "NonEnclosingTagType"
-	case NotApplicable, IgnoredTagType:
+	case NotApplicable:
 		return ""
 	default:
 		return "UnknownTagType"
