@@ -27,6 +27,7 @@ _testmain.go
 
 # Local work file
 go.work
+go.work.sum
 
 
 # IntelliJ
