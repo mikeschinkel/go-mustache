@@ -80,7 +80,7 @@ func TestClassifierWithDelimiters(t *testing.T) {
 		{
 			name:     "Block tag with different identifier in closing",
 			template: "{{$block1}}Content{{/block2}}",
-			error:    "mismatched opening and closing delimiters ('block1'!='block2') in '{{$block1}}Content{{/block2}}'",
+			error:    "mismatched opening and closing delimiters; opening_identifier=block1; closing_identifier=block2; template_line={{$block1}}Content{{/block2}}",
 			comment:  "Block with different identifiers in opening and closing should error",
 		},
 		{
@@ -107,7 +107,7 @@ func TestClassifierWithDelimiters(t *testing.T) {
 		{
 			name:     "Empty identifier",
 			template: "{{}}",
-			error:    "tag identifier is missing in '{{}}'",
+			error:    "tag identifier is missing; template_line={{}}",
 			comment:  "Empty tag identifiers should result in an error",
 		},
 		{
@@ -169,7 +169,7 @@ func TestClassifierWithDelimiters(t *testing.T) {
 		{
 			name:     "Triple brace delimiter rejection",
 			template: "{{={{{ }}}=}}\n{{{tag}}}",
-			error:    "invalid delimiters: opening triple braces cannot be used as custom opening delimiters: '{{={{{ }}}=}}'",
+			error:    "triple braces cannot be used as custom delimiters; delimiter_position=opening_delimiter; template_line={{={{{ }}}=}}",
 			comment:  "Setting delimiters to triple braces should be rejected to avoid ambiguity",
 		},
 		{
@@ -185,7 +185,7 @@ func TestClassifierWithDelimiters(t *testing.T) {
 		{
 			name:     "Empty delimiters",
 			template: "{{==}}",
-			error:    "invalid delimiters: delimiters cannot be empty: '{{==}}'",
+			error:    "delimiters cannot be empty; template_line={{==}}",
 			comment:  "Empty delimiters should result in an error",
 		},
 	})

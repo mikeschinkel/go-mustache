@@ -2,6 +2,7 @@ package test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/alexkappa/mustache/classifier"
@@ -115,7 +116,7 @@ func testsRunner(t *testing.T, tests []TestCase) {
 				switch {
 				case err == nil:
 					checkError(t, err, tt.error, tt.template, tt.comment)
-				case err.Error() != tt.error:
+				case !errEqual(err, tt.error):
 					showMismatch(t, asError(err.Error()), asError(tt.error), tt.template, tt.comment)
 				}
 			}
@@ -161,15 +162,26 @@ func showMismatch(t *testing.T, got, want any, template, comment string) {
 		comment,
 	)
 }
-func stringer(s any) string {
+
+func stringer(s any) (out string) {
 	switch ts := s.(type) {
 	case string:
-		return ts
+		out = ts
 	case fmt.Stringer:
-		return ts.String()
+
+		out = ts.String()
+	default:
+		out = fmt.Sprintf("%v", s)
 	}
-	return fmt.Sprintf("%v", s)
+	return stringNormalizer(out)
 }
 func asError(s string) string {
 	return fmt.Sprintf("ERROR: `%s`", s)
+}
+func stringNormalizer(s string) string {
+	return strings.Replace(s, "\n", "; ", -1)
+}
+
+func errEqual(got error, want string) bool {
+	return stringNormalizer(got.Error()) == stringNormalizer(want)
 }
