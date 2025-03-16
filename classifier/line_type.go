@@ -4,24 +4,47 @@ import (
 	"reflect"
 )
 
+// LineTypes is a collection of LineType values.
 type LineTypes []LineType
+
+// LineType represents the classification of a line in a Mustache template.
+// This classification determines how the line should be rendered.
 type LineType uint8
 
 const (
-	InvalidLineType   LineType = iota // Non-initialized line type
-	EmptyLine                         // Empty line type
-	InlineLine                        // Line with tag(s) mixed with other content
-	StandaloneLine                    // Line with a single standalone tag
-	TextLine                          // Regular content, not a tag
-	WhitespaceLine                    // Whitespace only content, not a tag
-	NotApplicableLine                 // To be used when required but explicitly not applicable
+	// InvalidLineType represents a non-initialized line type.
+	InvalidLineType LineType = iota
+
+	// EmptyLine represents a line with no content (zero length).
+	EmptyLine
+
+	// InlineLine represents a line with tags mixed with other content.
+	InlineLine
+
+	// StandaloneLine represents a line with a single standalone tag.
+	// Standalone tags are handled specially in Mustache (e.g., partials, sections, etc.).
+	StandaloneLine
+
+	// TextLine represents a line containing only text content, i.e. no tags and more
+	// than just whitespace.
+	TextLine
+
+	// WhitespaceLine represents a line containing only whitespace.
+	WhitespaceLine
+
+	// NotApplicableLine is used when a line type is required but not applicable such
+	// as when segment types are TextContent or Whitespace.
+	NotApplicableLine
 )
 
+// Equal compares two LineTypes collections for equality. This is used when
+// testing.
 func (ts LineTypes) Equal(types LineTypes) bool {
 	return reflect.DeepEqual(ts, types)
 }
 
-// String returns a human-readable representation of Tag for debugging
+// String returns a human-readable representation of LineType for use in error
+// messages.
 func (t LineType) String() string {
 	switch t {
 	case EmptyLine:
