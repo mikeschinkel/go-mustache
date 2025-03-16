@@ -15,7 +15,8 @@ type Tag struct {
 	Type TagType
 }
 
-// String returns a human-readable representation of Tag for error messages.
+// String returns a human-readable representation of Tag for error messages and
+// test output.
 func (t Tag) String() string {
 	return fmt.Sprintf("[tag: {name: '%s', type: '%s'}]", t.Identifier, t.Type)
 }
