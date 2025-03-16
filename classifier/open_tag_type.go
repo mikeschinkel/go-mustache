@@ -18,7 +18,8 @@ const (
 	DelimiterOpen
 )
 
-// String returns a human-readable representation of OpenTagType for error messages.
+// String returns a human-readable representation of OpenTagType for error
+// messages and test output.
 func (ott OpenTagType) String() string {
 	switch ott {
 	case TripleBraceOpen:
