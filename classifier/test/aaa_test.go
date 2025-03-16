@@ -1,8 +1,52 @@
-package classifier
+package test
 
 import (
 	"fmt"
 	"testing"
+
+	"github.com/alexkappa/mustache/classifier"
+)
+
+type (
+	Segments = classifier.Segments
+	Lines    = classifier.Lines
+)
+
+const (
+	StandaloneLine = classifier.StandaloneLine
+	InlineLine     = classifier.InlineLine
+	TextLine       = classifier.TextLine
+	WhitespaceLine = classifier.WhitespaceLine
+	EmptyLine      = classifier.EmptyLine
+)
+
+var (
+	NewTemplateClassifier  = classifier.NewTemplateClassifier
+	MakeBeginTagSegment    = classifier.MakeBeginTagSegment
+	MakeSegment            = classifier.MakeSegment
+	MakeTagSegment         = classifier.MakeTagSegment
+	MakeEndTagSegment      = classifier.MakeEndTagSegment
+	MakeWhitespaceSegment  = classifier.MakeWhitespaceSegment
+	MakeTextContentSegment = classifier.MakeTextContentSegment
+	MakeCommentTagSegment  = classifier.MakeCommentTagSegment
+)
+
+const (
+	DotTag               = classifier.DotTag
+	PartialTag           = classifier.PartialTag
+	SetDelimiterTag      = classifier.SetDelimiterTag
+	VarTag               = classifier.VarTag
+	CommentTag           = classifier.CommentTag
+	SectionTag           = classifier.SectionTag
+	BlockTag             = classifier.BlockTag
+	InvertedSectionTag   = classifier.InvertedSectionTag
+	ParentTag            = classifier.ParentTag
+	TripleBraceUnescaped = classifier.TripleBraceUnescaped
+	AmpersandUnescaped   = classifier.AmpersandUnescaped
+	CompleteTag          = classifier.CompleteTag
+	MultilineBegin       = classifier.MultilineBegin
+	MultilineMiddle      = classifier.MultilineMiddle
+	MultilineEnd         = classifier.MultilineEnd
 )
 
 type TestCase struct {
@@ -58,8 +102,7 @@ var (
 func testsRunner(t *testing.T, tests []TestCase) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			classifier := NewTemplateClassifier(tt.template)
-			got, err := classifier.Classify()
+			got, err := NewTemplateClassifier(tt.template).Classify()
 			switch wantError(tt.error) {
 			case NO:
 				switch {
