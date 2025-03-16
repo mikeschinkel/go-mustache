@@ -79,7 +79,7 @@ The classifier categorizes each line into one of the following types:
 
 ## Segment Types
 
-Each line is further broken down into segments, which can be:
+Each line is further broken down into **one or more** segments per line, each of which can be any of:
 
 - `TextContent`: Regular template text
 - `Whitespace`: Spaces, tabs, etc.
