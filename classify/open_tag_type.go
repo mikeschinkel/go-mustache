@@ -1,4 +1,4 @@
-package classifier
+package classify
 
 // OpenTagType represents the type of opening sequence for a tag in a Mustache
 // template. It distinguishes between standard delimiters (default: '{{') and

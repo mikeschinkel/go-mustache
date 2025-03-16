@@ -1,4 +1,4 @@
-package classifier
+package classify
 
 // isInlineWhitespace determines if a character is considered "inline whitespace"
 // which this project defines as spaces, tabs, and carriage returns, but not

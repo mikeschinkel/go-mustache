@@ -5,49 +5,49 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alexkappa/mustache/classifier"
+	"github.com/alexkappa/mustache/classify"
 )
 
 type (
-	Segments = classifier.Segments
-	Lines    = classifier.Lines
+	Segments = classify.Segments
+	Lines    = classify.Lines
 )
 
 const (
-	StandaloneLine = classifier.StandaloneLine
-	InlineLine     = classifier.InlineLine
-	TextLine       = classifier.TextLine
-	WhitespaceLine = classifier.WhitespaceLine
-	EmptyLine      = classifier.EmptyLine
+	StandaloneLine = classify.StandaloneLine
+	InlineLine     = classify.InlineLine
+	TextLine       = classify.TextLine
+	WhitespaceLine = classify.WhitespaceLine
+	EmptyLine      = classify.EmptyLine
 )
 
 var (
-	NewTemplateClassifier  = classifier.NewTemplateClassifier
-	MakeBeginTagSegment    = classifier.MakeBeginTagSegment
-	MakeSegment            = classifier.MakeSegment
-	MakeTagSegment         = classifier.MakeTagSegment
-	MakeEndTagSegment      = classifier.MakeEndTagSegment
-	MakeWhitespaceSegment  = classifier.MakeWhitespaceSegment
-	MakeTextContentSegment = classifier.MakeTextContentSegment
-	MakeCommentTagSegment  = classifier.MakeCommentTagSegment
+	NewTemplateClassifier  = classify.NewTemplateClassifier
+	MakeBeginTagSegment    = classify.MakeBeginTagSegment
+	MakeSegment            = classify.MakeSegment
+	MakeTagSegment         = classify.MakeTagSegment
+	MakeEndTagSegment      = classify.MakeEndTagSegment
+	MakeWhitespaceSegment  = classify.MakeWhitespaceSegment
+	MakeTextContentSegment = classify.MakeTextContentSegment
+	MakeCommentTagSegment  = classify.MakeCommentTagSegment
 )
 
 const (
-	DotTag               = classifier.DotTag
-	PartialTag           = classifier.PartialTag
-	SetDelimiterTag      = classifier.SetDelimiterTag
-	VarTag               = classifier.VarTag
-	CommentTag           = classifier.CommentTag
-	SectionTag           = classifier.SectionTag
-	BlockTag             = classifier.BlockTag
-	InvertedSectionTag   = classifier.InvertedSectionTag
-	ParentTag            = classifier.ParentTag
-	TripleBraceUnescaped = classifier.TripleBraceUnescaped
-	AmpersandUnescaped   = classifier.AmpersandUnescaped
-	CompleteTag          = classifier.CompleteTag
-	MultilineBegin       = classifier.MultilineBegin
-	MultilineMiddle      = classifier.MultilineMiddle
-	MultilineEnd         = classifier.MultilineEnd
+	DotTag               = classify.DotTag
+	PartialTag           = classify.PartialTag
+	SetDelimiterTag      = classify.SetDelimiterTag
+	VarTag               = classify.VarTag
+	CommentTag           = classify.CommentTag
+	SectionTag           = classify.SectionTag
+	BlockTag             = classify.BlockTag
+	InvertedSectionTag   = classify.InvertedSectionTag
+	ParentTag            = classify.ParentTag
+	TripleBraceUnescaped = classify.TripleBraceUnescaped
+	AmpersandUnescaped   = classify.AmpersandUnescaped
+	CompleteTag          = classify.CompleteTag
+	MultilineBegin       = classify.MultilineBegin
+	MultilineMiddle      = classify.MultilineMiddle
+	MultilineEnd         = classify.MultilineEnd
 )
 
 type TestCase struct {

@@ -1,4 +1,4 @@
-package classifier
+package classify
 
 // TagTypes is a collection of TagType values.
 type TagTypes []TagType

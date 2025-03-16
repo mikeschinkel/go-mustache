@@ -1,4 +1,4 @@
-package classifier
+package classify
 
 // SegmentTypes is a collection of SegmentType values.
 type SegmentTypes []SegmentType
