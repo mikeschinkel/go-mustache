@@ -1,10 +1,10 @@
 # Mustache Template Classifier
 
-A template classification library for the [mustache templating language](https://mustache.github.io/) in Go.
+A package for the Go programming language to classify the lines and line segments of _(almost?)_ any valid [Mustache](https://mustache.github.io/) template.
 
 ## Overview
 
-The Mustache Template Classifier is a specialized package for analyzing and classifying Mustache templates. It preprocesses templates and assigns line types and segments to each line, which helps with proper indentation, whitespace handling, and newline processing according to the [Mustache specification](https://github.com/mustache/spec).
+The Mustache Template Classifier is a specialized package for analyzing and classifying Mustache templates. It preprocesses templates and assigns line types and segments to each line, which can be used to help understand what constitutes proper indentation, whitespace handling, and newline processing according to the [Mustache specification](https://github.com/mustache/spec).
 
 This package was created to handle the more complex aspects of Mustache rendering, especially when dealing with:
 
