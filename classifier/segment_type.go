@@ -1,7 +1,7 @@
 package classifier
 
 type SegmentTypes []SegmentType
-type SegmentType int
+type SegmentType uint8 // Fits into 4 bits
 
 const (
 	CompleteTag SegmentType = iota
@@ -17,7 +17,7 @@ const (
 	IgnoredSegmentType
 )
 
-// String returns a human-readable representation of line segment for debugging
+// String returns a human-readable representation of a segment type for debugging
 func (t SegmentType) String() string {
 	switch t {
 	case InvalidSegmentType:

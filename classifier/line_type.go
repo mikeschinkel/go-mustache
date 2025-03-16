@@ -5,7 +5,7 @@ import (
 )
 
 type LineTypes []LineType
-type LineType int
+type LineType uint8
 
 const (
 	InvalidLineType   LineType = iota // Non-initialized line type

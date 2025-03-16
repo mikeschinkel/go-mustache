@@ -1,34 +1,33 @@
 package classifier
 
 type TagTypes []TagType
-type TagType int
+
+// TagType represent the type of tag for a segment
+type TagType uint8 // Now fits into 4 bits
 
 func (tt TagType) IsValid() (valid bool) {
 	switch tt {
-	case BlockTag, InvertedSectionTag, ParentTag, SectionTag:
-		// Enclosing tags
-		fallthrough
-	case AmpersandUnescaped, DelimiterTag, DotTag, PartialTag, VarTag, CommentTag, TripleBraceUnescaped:
-		// Non-enclosing tags
-		valid = true
+	case NotApplicable, NonEnclosingTagType, IgnoredTagType:
+		// accept zero value for valid
 	default:
+		valid = true
 	}
 	return valid
 }
 
 const (
 	NotApplicable        TagType = iota
-	AmpersandUnescaped           // Unescaped tag with ampersand syntax: {{&tag}}
-	BlockTag                     // Block definition tag with dollar syntax: {{$block}}
-	CommentTag                   // Comment tag with exclamation point syntax: {{! Comment goes here}}
-	DelimiterTag                 // Delimiter setting tag with equals syntax: {{=< >=}}
-	DotTag                       // Current context tag with dot syntax: {{.}}
-	InvertedSectionTag           // Inverted section tag with caret syntax: {{^section}}
-	ParentTag                    // Parent template tag end for inheritance with slash syntax: {{/parent}}
-	PartialTag                   // Partial inclusion tag with greater-than syntax: {{>partial}}
-	VarTag                       // Variable tag {{var}}
-	SectionTag                   // Section tag with hash syntax: {{#section}}
-	TripleBraceUnescaped         // Unescaped tag with triple brace syntax: {{{tag}}}
+	AmpersandUnescaped           // {{&tag}}:       Unescaped tag with ampersand syntax: {{&tag}}
+	BlockTag                     // {{$block}}:     Block definition tag with dollar syntax: {{$block}}
+	CommentTag                   // {{! comment }}: Comment tag with exclamation point syntax: {{! Comment goes here}}
+	SetDelimiterTag              // {{=< >=}}:      Delimiter setting tag with equals syntax: {{=< >=}}
+	DotTag                       // {{.}}:          Current context tag with dot syntax: {{.}}
+	InvertedSectionTag           // {{^section}}:   Inverted section tag with caret syntax: {{^section}}
+	ParentTag                    // {{/parent}}:    Parent template tag end for inheritance with slash syntax: {{/parent}}
+	PartialTag                   // {{>partial}}:   Partial inclusion tag with greater-than syntax: {{>partial}}
+	VarTag                       // {{var}}:        Variable tag {{var}}
+	SectionTag                   // {{#section}}:   Section tag with hash syntax: {{#section}}
+	TripleBraceUnescaped         // {{{tag}}}:      Unescaped tag with triple brace syntax: {{{tag}}}
 	NonEnclosingTagType          // Used when a tag type is needed but is not a enclosing tag type
 	IgnoredTagType               // Used by Normalize() so that String() will return ""
 )
@@ -55,8 +54,8 @@ func (tt TagType) String() string {
 		return "BlockTag"
 	case CommentTag:
 		return "CommentTag"
-	case DelimiterTag:
-		return "DelimiterTag"
+	case SetDelimiterTag:
+		return "SetDelimiterTag"
 	case DotTag:
 		return "DotTag"
 	case InvertedSectionTag:
@@ -73,9 +72,7 @@ func (tt TagType) String() string {
 		return "TripleBraceUnescaped"
 	case NonEnclosingTagType:
 		return "NonEnclosingTagType"
-	case NotApplicable:
-		return ""
-	case IgnoredTagType:
+	case NotApplicable, IgnoredTagType:
 		return ""
 	default:
 		return "UnknownTagType"

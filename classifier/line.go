@@ -1,10 +1,26 @@
 package classifier
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 )
 
 type Lines []Line
+
+func (ll Lines) String() string {
+	var sb strings.Builder
+	sb.WriteByte('[')
+	for i, line := range ll {
+		sb.WriteString(line.String())
+		if i == len(ll)-1 {
+			break
+		}
+		sb.WriteString(", ")
+	}
+	sb.WriteByte(']')
+	return sb.String()
+}
 
 func (ll Lines) Normalize() Lines {
 	for i := range ll {
@@ -25,6 +41,19 @@ func (ll Lines) Equal(lines Lines) bool {
 type Line struct {
 	Type     LineType
 	Segments Segments
+}
+
+func (l *Line) String() (str string) {
+	typ := l.Type
+	switch typ {
+	case TextLine, WhitespaceLine:
+		str = typ.String()
+		goto end
+	default:
+	}
+	str = fmt.Sprintf("{%s, %s}", typ.String(), l.Segments.String())
+end:
+	return str
 }
 
 func (l *Line) PastEOL(pos *int, len int) bool {
