@@ -90,6 +90,20 @@ Each line is further broken down into segments, which can be:
 - `MultilineMiddle`: Middle line of a multiline tag
 - `MultilineEnd`: Last line of a multiline tag
 
+## Why? / For What Use-Case?
+
+This module's parent contains a fork of a Go package — [github.com/alexkappa/mustache](https://github.com/alexkappa/mustache). This fork is intended to add support for all the Mustache conformance tests found [here](https://github.com/mustache/spec/tree/master/specs).
+
+This repo's original project — from [alexkappa/mustache](https://github.com/alexkappa/mustache) uses a lexer and then a parser to process mustache template files and then a renderer. As I worked on my fork I added a preprocessor between the parser and renderer to handle some of the more arcane rules for indentation and eliding newlines. However, at one point I into a problem reasoning about the parser, especially given how the lexer and parser interact making it hard to follow.
+
+Given I found myself stalled on being able to handle all the conformance tests because my inability to reason about the arcane rules for indentation and eliding newlines I decided to create a small sub-project to **classify all lines in a template** with a line type and with a slice of token slices — which I called `Segments` — so that I could better reason about them. That is the code that exists in this module.
+
+My plan was to use this in my preprocessor for the parent module when I needed to decide on indentation and/or eliding newlines but in retrospect using two (2) parsers to parse the same template for one rendering is probably not a great idea. At the time of this writing I think I should just revisit fixing alexkappa's parser now that I better understand Mustache's requirements.
+
+**_Still_**, since I did all the work to get this template classifier to pass the over 100 tests comprising various scenarios I felt it would be a shame to just throw it all away. 
+
+So **that** is the _why_ for this repo. I do not know if anyone will ever find it useful, but if someone does then I guess it will have been worth me not throwing it away. 🤷‍♂️
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
